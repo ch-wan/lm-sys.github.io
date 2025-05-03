@@ -1,22 +1,22 @@
 ---
-title: "Deploying DeepSeek with PD disaggregation and Large-scale Expert Parallelism on 96 GPUs"
+title: "Deploying DeepSeek with PD disaggregation and Large-scale Expert Parallelism on 96 H100 GPUs"
 author: "The SGLang Team"
 date: "May 5, 2025"
-previewImg: /images/blog/large-scale-ep/cover.jpg
+previewImg: /images/blog/large_scale_ep/overall-arch.png
 
 ---
 
 
 
-DeepSeek is a well-known open-source large language model (LLM) praised for its strong performance. Its large size and unique structure, which uses Multi-head Latent Attention (MLA) and a Mixture of Experts (MoE) approach, require an advanced system for efficient use at scale. In this blog, we explain how we implemented DeepSeek's system using SGLang. By applying improved parallel processing and optimizations, we achieved high efficiency and speed.
+DeepSeek is a popular open-source large language model (LLM) praised for its strong performance. Its large size and unique structure, which uses Multi-head Latent Attention (MLA) and a Mixture of Experts (MoE) approach, require an advanced system for efficient use at scale. In this blog, we explain how we match DeepSeek's inference system performance with SGLang. By applying improved parallel processing and optimizations, we achieved high efficiency and speed.
 
 <img src="/images/blog/large_scale_ep/overall-arch.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 90%"></img>
 
-Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H100 GPUs. It uses prefill-decode separation and large-scale expert parallelism, achieving a speed of **54.5k input tokens per second and 22.3k output tokens per second per node** for 2000-token input sequences. To the best of our knowledge, this represents **the first open-source implementation to nearly match the throughput reported in the official DeepSeek blog** at a 96-GPU scale. Compared to standard tensor parallelism using the same resources, the new setup improves output speed by up to 2.1x. This blog dives into our parallel design, optimization methods, and results. All components of our work are fully open-source, allowing others to explore and build on our efforts. The code is available at: [https://github.com/sgl-project/sglang/pull/5524](https://github.com/sgl-project/sglang/pull/5524).
+Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H100 GPUs. It uses prefill-decode disaggreegation and large-scale expert parallelism, achieving a speed of **54.5k input tokens per second and 22.3k output tokens per second per node** for 2000-token input sequences. To the best of our knowledge, this represents **the first open-source implementation to nearly match the throughput reported in the official DeepSeek blog** at a 96-GPU scale. Compared to standard tensor parallelism using the same resources, the new setup improves output speed by up to 2.1x. This blog dives into our parallel design, optimization methods, and results. All components of our work are fully open-source, allowing others to explore and build on our efforts. The code is available at: [https://github.com/sgl-project/sglang/pull/5524](https://github.com/sgl-project/sglang/pull/5524).
 
 ## Highlight
 
-✅ SGLang now supports prefill-decode (PD) disaggregation and large-scale expert parallelism (EP), including the full functionality of [DeepEP](https://github.com/deepseek-ai/DeepEP), [DeepGeMM](https://github.com/deepseek-ai/DeepGEMM), and [EPLB](https://github.com/deepseek-ai/eplb).
+✅ SGLang now supports prefill-decode (PD) disaggregation and large-scale expert parallelism (EP), including the full functionality of [DeepEP](https://github.com/deepseek-ai/DeepEP), [DeepGEMM](https://github.com/deepseek-ai/DeepGEMM), and [EPLB](https://github.com/deepseek-ai/eplb).
 
 ✅ Leveraging these new features, our team successfully replicated DeepSeek's inference system using 12 nodes, each with 8 H100 GPUs. In total, SGLang achieves a throughput of 54.5k input tokens per second and 22.3k output tokens per second on each computation node for input sequences of 2000 tokens.
 
@@ -29,7 +29,7 @@ Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H10
 ## Outline
 
 - [Parallelism Design](#parallelism-design)
-- [Prefill and Decoding (PD) Disaggregation](#prefill-and-decoding-pd-disaggregation)
+- [Prefill and Decode Disaggregation](#prefill-and-decode-disaggregation)
 - [Large-scale Expert Parallelism](#large-scale-expert-parallelism)
 - [Toolkits](#toolkits)
 - [Evaluation](#evaluation)
@@ -44,10 +44,6 @@ Efficient parallelism is essential to manage the computational complexity and me
 ### Attention Layers
 
 DeepSeek employs **Multi-head Latent Attention (MLA)** to effectively model complex dependencies within input sequences. To optimize this mechanism, we implement **DP Attention**, a data parallelism strategy that eliminates KV cache duplication across devices, significantly reducing memory overhead. Introduced in [SGLang v0.4](https://lmsys.org/blog/2024-12-04-sglang-v0-4/#data-parallelism-attention-for-deepseek-models), this approach has been extended to support **hybrid data and tensor parallelism**, offering flexibility for processing small batch sizes efficiently.
-
-**Related PR**:
-
-- [https://github.com/sgl-project/sglang/pull/4521](https://github.com/sgl-project/sglang/pull/4521)
 
 ### Dense FFNs
 
@@ -65,16 +61,6 @@ The integration of DP dense FFN with DP attention is illustrated below. Users ca
 
 
 
-**Related PR**
-
-- [https://github.com/sgl-project/sglang/pull/4836](https://github.com/sgl-project/sglang/pull/4836)
-- [https://github.com/sgl-project/sglang/pull/5657](https://github.com/sgl-project/sglang/pull/5657)
-- [https://github.com/sgl-project/sglang/pull/5558](https://github.com/sgl-project/sglang/pull/5558)
-
-
-
-
-
 ### Sparse FFNs
 
 In DeepSeek-V3's Mixture of Experts (MoE) architecture, sparse FFNs require substantial expert weights, creating a significant memory bottleneck. To address this, we implement **Expert Parallelism (EP)**, which distributes expert weights across multiple devices. This approach effectively scales memory capacity while maintaining high performance, though it does introduce challenges like irregular all-to-all communication and workload imbalance.
@@ -89,22 +75,21 @@ The diagram below illustrates our Expert Parallelism (EP) implementation using t
 
 The LM head computes output probabilities over a large vocabulary, a resource-intensive operation traditionally handled with **Vocabulary Parallelism** to aggregate token logits from TP groups. To enhance scalability and efficiency, we adopt **Data Parallelism (DP)**, mirroring our dense FFN strategy. This reduces memory overhead and simplifies communication across devices, delivering a more streamlined solution.
 
-**Related PR**
 
-- [https://github.com/sgl-project/sglang/pull/5558](https://github.com/sgl-project/sglang/pull/5558)
 
 ---
 
-## Prefill and Decoding (PD) Disaggregation
+## Prefill and Decode Disaggregation
 
-Large Language Model (LLM) inference comprises two distinct phases: **Prefill** and **Decode**. The Prefill phase is computation-intensive, processing the entire input sequence, while the Decode phase is memory-intensive, managing the Key-Value (KV) cache for token generation. Traditionally, these phases are handled within a unified engine, where combined scheduling of prefill and decode batches introduces inefficiencies. To address these challenges, we introduce **Prefill and Decoding (PD) Disaggregation** in SGLang.
+Large Language Model (LLM) inference comprises two distinct phases: **Prefill** and **Decode**. The Prefill phase is computation-intensive, processing the entire input sequence, while the Decode phase is memory-intensive, managing the Key-Value (KV) cache for token generation. Traditionally, these phases are handled within a unified engine, where combined scheduling of prefill and decode batches introduces inefficiencies. To address these challenges, we introduce **Prefill and Decode (PD) Disaggregation** in SGLang.
 
 ### Issues with Unified Scheduling
 
 The conventional unified engine, which processes prefill and decode batches together, results in two significant problems:
 
 1. **Prefill Interruption**: Incoming prefill batches frequently interrupt ongoing decode batches, causing substantial delays in token generation.
-2. **DP Attention Imbalance**: In data-parallel (DP) attention, one DP worker may process a prefill batch while another handles a decode batch simultaneously, leading to increased decode latency.
+2. **DP Attention Imbalance**: In DP attention, one DP worker may process a prefill batch while another handles a decode batch simultaneously, leading to increased decode latency.
+3. **Incompatible with DeepEP**: As we will discuss in [the later section](#deepep), DeepEP executes different dispatch modes for prefill and decode, making unified scheduling imcompatible with DeepEP.
 
 PD Disaggregation resolves these by separating the two stages, enabling tailored optimizations for each.
 
@@ -132,12 +117,6 @@ This separation ensures each phase operates under optimal conditions, maximizing
 
 More details can be found in our [design document](https://docs.google.com/document/d/1rQXJwKd5b9b1aOzLh98mnyMhBMhlxXA5ATZTHoQrwvc/edit?tab=t.0).
 
-**Related PR**
-
-- [https://github.com/sgl-project/sglang/pull/4654](https://github.com/sgl-project/sglang/pull/4654)
-- [https://github.com/sgl-project/sglang/pull/4880](https://github.com/sgl-project/sglang/pull/4880)
-- [https://github.com/sgl-project/sglang/pull/5435](https://github.com/sgl-project/sglang/pull/5435)
-
 ---
 
 ## Large-scale Expert Parallelism
@@ -163,43 +142,23 @@ PD disaggregation addresses this by separating prefill and decode phases, allowi
 
 
 
-**Related PR**
+### DeepGEMM Integration
 
-- [https://github.com/sgl-project/sglang/pull/4232](https://github.com/sgl-project/sglang/pull/4232)
-- [https://github.com/sgl-project/sglang/pull/4610](https://github.com/sgl-project/sglang/pull/4610)
-- [https://github.com/sgl-project/sglang/pull/4767](https://github.com/sgl-project/sglang/pull/4767)
-- [https://github.com/sgl-project/sglang/pull/4770](https://github.com/sgl-project/sglang/pull/4770)
-- [https://github.com/sgl-project/sglang/pull/5068](https://github.com/sgl-project/sglang/pull/5068)
-- [https://github.com/sgl-project/sglang/pull/5277](https://github.com/sgl-project/sglang/pull/5277)
-- [https://github.com/deepseek-ai/DeepEP/pull/142](https://github.com/deepseek-ai/DeepEP/pull/142)
-
-
-
-### DeepGeMM Integration
-
-DeepGeMM is another high-efficient library developed by the DeepSeek team, specifically designed to optimize computations in Mixture of Experts (MoE) models. It provides two specialized functions for handling MoE-related matrix multiplications (Grouped GEMMs), each tailored to different phases of the inference process.
+DeepGEMM is another high-efficient library developed by the DeepSeek team, specifically designed to optimize computations in Mixture of Experts (MoE) models. It provides two specialized functions for handling MoE-related matrix multiplications (Grouped GEMMs), each tailored to different phases of the inference process.
 
 - **Grouped GEMMs (contiguous layout):** This kernel is designed for dynamic input shapes, making it ideal for the prefill phase of MoE inference. It processes inputs where the data for different experts is concatenated contiguously, allowing for flexible handling of varying input sizes.
 - **Grouped GEMMs (masked layout):** This kernel assumes a fixed input shape and uses a mask tensor to compute only the valid portions of the input. It is compatible with CUDA Graph, which optimizes kernel launches, making it well-suited for the decoding phase where reducing overhead is critical.
 
-DeepGeMM integrates smoothly with the dispatch modes of DeepEP:
+DeepGEMM integrates smoothly with the dispatch modes of DeepEP:
 
-- For the **contiguous layout kernel**, which is used with **normal dispatch** in the prefill phase, an additional step is required. Since normal dispatch outputs a symbolic shape, a permutation is needed to transform the output into the contiguous format expected by the kernel. We referred to the **LightLLM** project and implemented a custom **Triton kernel** for efficient permutation. This kernel ensures that the output from normal dispatch is correctly rearranged, enabling smooth integration with the contiguous GEMM kernel.
+- For the **contiguous layout kernel**, which is used with **normal dispatch** in the prefill phase, an additional step is required. Since normal dispatch outputs a symbolic shape, a permutation is needed to transform the output into the contiguous format expected by the kernel. We referred to the LightLLM project and implemented a custom Triton kernel for efficient permutation. This kernel ensures that the output from normal dispatch is correctly rearranged, enabling smooth integration with the contiguous GEMM kernel.
 - The **masked layout kernel** pairs seamlessly with DeepEP’s **low-latency dispatch**, as both are optimized for the decoding phase and support CUDA Graph.
 
-SGLang also integrates DeepGeMM for MoE computation under tensor parallelism. Additionally, DeepGeMM provides a highly efficient general GeMM kernel, which can be activated in SGLang by setting the environment variable `SGL_ENABLE_JIT_DEEPGEMM` to 1, offering even greater computational efficiency for non-MoE operations.
+SGLang also integrates DeepGEMM for MoE computation under tensor parallelism. Additionally, DeepGEMM provides a highly efficient general GeMM kernel, which can be activated in SGLang by setting the environment variable `SGL_ENABLE_JIT_DeepGEMM` to 1, offering even greater computational efficiency for non-MoE operations.
 
 
 
-**Related PR**
-
-- [https://github.com/sgl-project/sglang/pull/5805](https://github.com/sgl-project/sglang/pull/5805)
-- [https://github.com/sgl-project/sglang/pull/5819](https://github.com/sgl-project/sglang/pull/5819)
-- [https://github.com/sgl-project/sglang/pull/5626](https://github.com/sgl-project/sglang/pull/5626)
-
-
-
-### Two-batch Overlap (TBO)
+### Two-batch Overlap
 
 In multi-node environments, limited communication bandwidth can significantly increase overall latency. To tackle this challenge, we implemented **Two-batch Overlap (TBO)** following [DeepSeek's system design](https://github.com/deepseek-ai/profile-data). TBO splits a single batch into two micro-batches, allowing computation and communication to overlap, which also lowers peak memory usage by halving the effective batch size. However, putting TBO into practice introduces specific implementation difficulties.
 
@@ -242,13 +201,9 @@ To optimize, we prioritize submitting computation tasks to the GPU before launch
 
 <img src="/images/blog/large_scale_ep/tbo-prefill.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 90%"></img>
 
-For readers interested in the full timing or want to understand profiles or code, please refer to the full figure and detailed explanations in the appendix.
 
-**Related PR**
 
-- [https://github.com/sgl-project/sglang/pull/4068](https://github.com/sgl-project/sglang/pull/4068)
-
-### Expert Parallelism Load Balancer (EPLB)
+### Expert Parallelism Load Balancer
 
 In Mixture of Experts (MoE) models, expert parallelism often leads to uneven workload distribution across GPUs. This imbalance forces the system to wait for the slowest GPU computation or communication, wasting compute cycles and increasing memory usage due to expert activations. As the number of GPUs (Expert Parallelism size) increases, the imbalance issue gets more severe.
 
@@ -282,10 +237,6 @@ SGLang implements expert rebalancing in three stages to ensure efficiency and mi
 3. **Rebalance Execution Stage**: A device-to-device copy updates the weights. This step can be further optimized through physical memory rebinding techniques.
 
 This staged approach ensures that rebalancing is both efficient and non-disruptive, maintaining system performance during updates.
-
-**Related PR**
-
-- [https://github.com/sgl-project/sglang/pull/5295](https://github.com/sgl-project/sglang/pull/5295)
 
 ---
 
@@ -321,9 +272,7 @@ hidden_state = ffn(hidden_state, linear1, linear2)
 
 By wrapping `hidden_state` in a `DisposableTensor` and calling `dispose()` when it’s no longer needed, the CUDA memory is freed right away. This ensures that memory is released as soon as the tensor’s role in the computation is complete, reducing peak memory usage and improving overall efficiency.
 
-**Related PR**
 
-- [https://github.com/sgl-project/sglang/pull/5085](https://github.com/sgl-project/sglang/pull/5085)
 
 ### Expert Workload Extraction and Simulation
 
@@ -334,15 +283,9 @@ SGLang also includes a toolset for analyzing and simulating expert workload dist
 
 This simulation capability allows users to evaluate how factors like rebalancing frequency, node count, or batch size impact system performance. It’s a cost-effective way to fine-tune configurations before scaling up.
 
-**Related PR**
-
-- [https://github.com/sgl-project/sglang/pull/4435](https://github.com/sgl-project/sglang/pull/4435)
-- [https://github.com/sgl-project/sglang/pull/4957](https://github.com/sgl-project/sglang/pull/4957)
-- [https://github.com/sgl-project/sglang/pull/5890](https://github.com/sgl-project/sglang/pull/5890)
 
 
-
-### Multi-Token Prediction (MTP) Simulator
+### Multi-Token Prediction Simulator
 
 Our system lacks one key component compared to the official DeepSeek inference system: **Multi-Token Prediction (MTP)**. To simulate MTP’s effects in SGLang, we make two adjustments:
 
@@ -407,8 +350,8 @@ TBO delivers two significant benefits in the prefill phase, as evidenced by thro
 
 TBO’s impact in the decode phase varies by scenario, with performance tied to batch size and attention processing time:
 
-- **Simulated MTP Scenario**: TBO provides the most substantial speedup in simulated MTP cases when processing 128 requests to generate 256 tokens per decode step. This is due to prolonged attention processing time, which aligns computation (e.g., DP Attention layers) with DeepEP communication overhead (e.g., combine and dispatch steps). The evaluation shows a 35% speedup at 128 tokens/device, with throughput 21,940 tokens/second compared to 16,161 without TBO.
-- **Real Test Cases**: Speedup in practical scenarios is contingent on batch size exceeding a threshold between 64 and 128 tokens, reaching 17,220 tokens/second at 128 tokens. Below this, TBO yields minimal or negative gains (e.g., -27% at 32 tokens/device), as small decode batch sizes hinder kernel efficiency.
+- **Simulated MTP Scenario**: TBO provides the most substantial speedup in simulated MTP cases when processing 128 requests to generate 256 tokens per decode step. This is due to prolonged attention processing time, which aligns computation (e.g., DP Attention layers) with DeepEP communication overhead (e.g., combine and dispatch steps). The evaluation shows a 35% speedup at 128 tokens/device, with throughput 21,940 tokens per second compared to 16,161 without TBO.
+- **Real Test Cases**: Speedup in practical scenarios is contingent on batch size exceeding a threshold between 64 and 128 tokens, reaching 17,220 tokens per second at 128 tokens. Below this, TBO yields minimal or negative gains (e.g., -27% at 32 tokens/device), as small decode batch sizes hinder kernel efficiency.
 
 #### Detail Breakdown
 
@@ -530,14 +473,13 @@ While our implementation of SGLang for DeepSeek-V3 inference demonstrates signif
 2. **Sequence Length Constraints**: Limited to shorter sequences due to the use of 96 GPUs. Expanding GPU resources would support longer sequences, essential for specific applications.
 3. **Multi-Token Prediction (MTP) Integration**: SGLang supports MTP but lacks full integration with data-parallel (DP) attention, reducing efficiency in mixed parallelism configurations.
 4. **EPLB Distribution**: The experiments in this blog utilizes in-distribution data for Expert Parallelism Load Balancer (EPLB), which may not reflect real-world variability. Future work should experiment performances when having distribution shifts.
-5. **Single Prefill-Decode (1P1D) Evaluation**: Only the 1P1D setup was tested. Exploring multi-prefill and multi-decode configurations would provide insights into scalability.
 6. **Flexible Tensor Parallelism (TP) Sizes**: For DeepSeek-V3, memory-optimal TP sizes are 3 or 4, but SGLang supports only pure TP or DP, leading to suboptimal memory use. Flexible TP options are needed.
 
 ---
 
 ## Conclusion
 
-By leveraging PD disaggregation, DeepEP, and a carefully crafted parallelism design, we’ve reproduced DeepSeek’s inference framework in SGLang with exceptional performance. Our open-source efforts—achieving 54.5k input tokens/second and 22.3k output tokens/second—demonstrate SGLang’s power for large-scale LLM inference. We invite the community to explore, replicate, and extend this work to push the boundaries of efficient AI deployment.
+By leveraging PD disaggregation, DeepEP, and a carefully crafted parallelism design, we’ve reproduced DeepSeek’s inference framework in SGLang with exceptional performance. Our open-source efforts—achieving 54.5k input tokens per second and 22.3k output tokens per second—demonstrate SGLang’s power for large-scale LLM inference. We invite the community to explore, replicate, and extend this work to push the boundaries of efficient AI deployment.
 
 ## Acknowledgment
 
@@ -552,3 +494,69 @@ We would like to express our heartfelt gratitude to the following teams and coll
 - **FlashInfer Team** — Zihao Ye, Yong Wu, Yaxing Cai — for additional DeepSeek R1 kernel optimizations.
 
 Thank you all for your invaluable support and collaboration.
+
+
+
+
+
+
+
+**Related PR** (DP attn)
+
+- [https://github.com/sgl-project/sglang/pull/4521](https://github.com/sgl-project/sglang/pull/4521)
+
+**Related PR** (PD Disaggregation)
+
+- [https://github.com/sgl-project/sglang/pull/4654](https://github.com/sgl-project/sglang/pull/4654)
+- [https://github.com/sgl-project/sglang/pull/4880](https://github.com/sgl-project/sglang/pull/4880)
+- [https://github.com/sgl-project/sglang/pull/5435](https://github.com/sgl-project/sglang/pull/5435)
+
+
+
+**Related PR (DeepGEMM)**
+
+- [https://github.com/sgl-project/sglang/pull/5805](https://github.com/sgl-project/sglang/pull/5805)
+- [https://github.com/sgl-project/sglang/pull/5819](https://github.com/sgl-project/sglang/pull/5819)
+- [https://github.com/sgl-project/sglang/pull/5626](https://github.com/sgl-project/sglang/pull/5626)
+
+
+
+**Related PR** (DeepEP)
+
+- [https://github.com/sgl-project/sglang/pull/4232](https://github.com/sgl-project/sglang/pull/4232)
+- [https://github.com/sgl-project/sglang/pull/4610](https://github.com/sgl-project/sglang/pull/4610)
+- [https://github.com/sgl-project/sglang/pull/4767](https://github.com/sgl-project/sglang/pull/4767)
+- [https://github.com/sgl-project/sglang/pull/4770](https://github.com/sgl-project/sglang/pull/4770)
+- [https://github.com/sgl-project/sglang/pull/5068](https://github.com/sgl-project/sglang/pull/5068)
+- [https://github.com/sgl-project/sglang/pull/5277](https://github.com/sgl-project/sglang/pull/5277)
+- [https://github.com/deepseek-ai/DeepEP/pull/142](https://github.com/deepseek-ai/DeepEP/pull/142)
+
+
+
+**Related PR** (LM head)
+
+- [https://github.com/sgl-project/sglang/pull/5558](https://github.com/sgl-project/sglang/pull/5558)
+
+**Related PR (Dense FFNs)**
+
+- [https://github.com/sgl-project/sglang/pull/4836](https://github.com/sgl-project/sglang/pull/4836)
+- [https://github.com/sgl-project/sglang/pull/5657](https://github.com/sgl-project/sglang/pull/5657)
+- [https://github.com/sgl-project/sglang/pull/5558](https://github.com/sgl-project/sglang/pull/5558)
+
+**Related PR** (Disposable Tensor)
+
+- [https://github.com/sgl-project/sglang/pull/5085](https://github.com/sgl-project/sglang/pull/5085)
+
+**Related PR** (EPLB)
+
+- [https://github.com/sgl-project/sglang/pull/5295](https://github.com/sgl-project/sglang/pull/5295)
+
+**Related PR** (TBO)
+
+- [https://github.com/sgl-project/sglang/pull/4068](https://github.com/sgl-project/sglang/pull/4068)
+
+**Related PR** (Expert Distribution)
+
+- [https://github.com/sgl-project/sglang/pull/4435](https://github.com/sgl-project/sglang/pull/4435)
+- [https://github.com/sgl-project/sglang/pull/4957](https://github.com/sgl-project/sglang/pull/4957)
+- [https://github.com/sgl-project/sglang/pull/5890](https://github.com/sgl-project/sglang/pull/5890)
