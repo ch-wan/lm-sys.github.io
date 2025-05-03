@@ -192,7 +192,7 @@ This abstraction keeps the codebase clean and adaptable, making it ideal for com
 
 #### Prefill Overlapping Implementation
 
-We carefully refine the launch order during the prefill phase to avoid CPU-blocking via the dispatch operation in DeepEP, even though we are using its asynchronous mode. Specifically:
+We refine the launch order during the prefill phase to avoid CPU-blocking via the dispatch operation in DeepEP, even though we are using its asynchronous mode. Specifically:
 
 - The dispatch operation blocks the CPU until the GPU receives metadata from other ranks to allocate correctly sized tensors.
 - An improper implementation would leave the computation stream idle during this period, as no computation tasks are submitted to the GPU.
@@ -284,16 +284,6 @@ SGLang also includes a toolset for analyzing and simulating expert workload dist
 This simulation capability allows users to evaluate how factors like rebalancing frequency, node count, or batch size impact system performance. It’s a cost-effective way to fine-tune configurations before scaling up.
 
 
-
-### Multi-Token Prediction Simulator
-
-Our system lacks one key component compared to the official DeepSeek inference system: **Multi-Token Prediction (MTP)**. To simulate MTP’s effects in SGLang, we make two adjustments:
-
-1. **Batch Size and KV Cache**: We double the batch size and halve the Key-Value (KV) cache length to maintain the same workload for GroupedGeMM computations and memory access patterns in the KV cache.
-2. **Attention Computation**: To account for the additional attention workload in MTP, we insert dummy kernels after the real attention computation. This ensures the attention phase takes the same time as in DeepSeek’s profile, accurately reflecting the slowdown caused by MTP’s attention mechanism.
-
-These modifications allow us to closely mimic MTP’s performance impact, providing a more realistic simulation of its behavior in our system.
-
 ---
 
 ## Evaluation
@@ -313,8 +303,12 @@ With an input length of 500 tokens and an output length of 1500 tokens, we measu
 
 
 
+TODO: Update the figure + update the comments
+
 <p style="color:gray;">* Under TP16, we force all Mixture of Experts (MoE) layers to share identical parameters to save memory and enable inference with large batch sizes.</p>
 <p style="color:gray;">** For batch size <= 32, disabling TBO will further boost 27%-40% performance.</p>
+(TODO: temporarily put this old comment) Under TP16x6 (Simulated), we force all Mixture of Experts (MoE) layers to share identical parameters to save memory and enable inference with large batch sizes.
+(TODO: temporarily put this old comment) In EP24+EP72 (Amortize Idle GPU), we incorporate the cost of idle prefill GPUs caused by insufficient scales. In EP24+EP72 (Assume No Idle GPU), we estimate scenarios when having correct P:D ratio.
 
 
 
@@ -324,6 +318,8 @@ To accommodate varying workload demands, we assessed the prefill (P) and decode 
 
 - **Prefill Phase**: Tested with 4 nodes (4x8xH100), achieving 50,302 tokens per second per node with a prompt length of 4000.
 - **Decode Phase**: Tested with 9 nodes (9x8xH100, half of DeepSeek’s), achieving 22,282 tokens per second per node with an input length of 2000. Under simulated Multi-Token Prediction (MTP) conditions with deliberately slowed attention mechanisms, throughput remained robust at 17,373 tokens per second per node with an input length of 4000.
+
+To simulate MTP’s effects, we firstly double the batch size and halve the Key-Value (KV) cache length to maintain the same workload for computations and memory access patterns. Moreover, we insert dummy kernels after the real attention computation to ensure the attention phase takes the same time as in DeepSeek’s profile, accurately reflecting the slowdown caused by MTP’s attention mechanism.
 
 These results are illustrated in the bar chart below:
 
