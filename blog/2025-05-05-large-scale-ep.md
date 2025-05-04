@@ -484,12 +484,12 @@ Thank you all for your invaluable support and collaboration.
 
 **Related PRs**
 
-- DP Attention: [#4521](https://github.com/sgl-project/sglang/pull/4521)
-- PD Disaggregation: [#4654](https://github.com/sgl-project/sglang/pull/4654), [#4880](https://github.com/sgl-project/sglang/pull/4880), [#5435](https://github.com/sgl-project/sglang/pull/5435)
-- DeepGEMM: [#5805](https://github.com/sgl-project/sglang/pull/5805), [#5819](https://github.com/sgl-project/sglang/pull/5819), [#5626](https://github.com/sgl-project/sglang/pull/5626)
-- DeepEP: [#4232](https://github.com/sgl-project/sglang/pull/4232), [#4610](https://github.com/sgl-project/sglang/pull/4610), [#4767](https://github.com/sgl-project/sglang/pull/4767), [#4770](https://github.com/sgl-project/sglang/pull/4770), [#5068](https://github.com/sgl-project/sglang/pull/5068), [#5277](https://github.com/sgl-project/sglang/pull/5277), [#142](https://github.com/deepseek-ai/DeepEP/pull/142)
+- DP Attention: [#1970](https://github.com/sgl-project/sglang/pull/1970), [#2925](https://github.com/sgl-project/sglang/pull/2925), [#4390](https://github.com/sgl-project/sglang/pull/4390), [#4521](https://github.com/sgl-project/sglang/pull/4521)
+- PD Disaggregation: [#4654](https://github.com/sgl-project/sglang/pull/4654), [#4880](https://github.com/sgl-project/sglang/pull/4880), [#5415](https://github.com/sgl-project/sglang/pull/5415), [#5435](https://github.com/sgl-project/sglang/pull/5435), [#5530](https://github.com/sgl-project/sglang/pull/5530), [#5561](https://github.com/sgl-project/sglang/pull/5561)
+- DeepGEMM: [#4165](https://github.com/sgl-project/sglang/pull/4165), [#5432](https://github.com/sgl-project/sglang/pull/5432), [#5626](https://github.com/sgl-project/sglang/pull/5626), [#5805](https://github.com/sgl-project/sglang/pull/5805), [#5819](https://github.com/sgl-project/sglang/pull/5819)
+- DeepEP: [#4232](https://github.com/sgl-project/sglang/pull/4232), [#4610](https://github.com/sgl-project/sglang/pull/4610), [#4767](https://github.com/sgl-project/sglang/pull/4767), [#4770](https://github.com/sgl-project/sglang/pull/4770), [#5068](https://github.com/sgl-project/sglang/pull/5068), [#5277](https://github.com/sgl-project/sglang/pull/5277), [DeepEP#142](https://github.com/deepseek-ai/DeepEP/pull/142)
 - LM head: [#5558](https://github.com/sgl-project/sglang/pull/5558)
-- Dense FFNs: [#4836](https://github.com/sgl-project/sglang/pull/4836), [#5657](https://github.com/sgl-project/sglang/pull/5657), [#5558](https://github.com/sgl-project/sglang/pull/5558)
+- Dense FFNs: [#4836](https://github.com/sgl-project/sglang/pull/4836), [#5657](https://github.com/sgl-project/sglang/pull/5657)
 - Disposable Tensor: [#5085](https://github.com/sgl-project/sglang/pull/5085)
 - EPLB: [#5295](https://github.com/sgl-project/sglang/pull/5295)
 - TBO: [#4068](https://github.com/sgl-project/sglang/pull/4068)
