@@ -10,7 +10,7 @@ previewImg: /images/blog/large_scale_ep/overall-arch.png
 
 DeepSeek is a popular open-source large language model (LLM) praised for its strong performance. Its large size and unique structure, which uses Multi-head Latent Attention (MLA) and a Mixture of Experts (MoE) approach, require an advanced system for efficient use at scale. In this blog, we explain how we match DeepSeek's inference system performance with SGLang. By applying improved parallel processing and optimizations, we achieved high efficiency and speed.
 
-<img src="/images/blog/large_scale_ep/overall-arch.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 90%"></img>
+<img src="/images/blog/large_scale_ep/overall-arch.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 90%; image-orientation: none;"></img>
 
 Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H100 GPUs. It uses prefill-decode disaggreegation and large-scale expert parallelism, achieving a speed of **54.5k input tokens per second and 22.3k output tokens per second per node** for 2000-token input sequences. To the best of our knowledge, this represents **the first open-source implementation to nearly match the throughput reported in the official DeepSeek blog** at a 96-GPU scale. Compared to standard tensor parallelism using the same resources, the new setup improves output speed by up to 2.1x. This blog dives into our parallel design, optimization methods, and results. All components of our work are fully open-source, allowing others to explore and build on our efforts. The code is available at: [https://github.com/sgl-project/sglang/pull/5524](https://github.com/sgl-project/sglang/pull/5524).
 
@@ -53,11 +53,11 @@ Despite DeepSeek-V3 featuring only three dense FFN layers, their computation can
 - **Optimized Memory Efficiency**: Traditionally, tensor parallelism (TP) reduces memory usage as worker size increases, but this advantage diminishes under data-parallel (DP) attention. In a pure TP setup, memory demand scales with DP size as: $$\text{Memory}=\frac{N_{\text{param}}}{\text{TP}}+(1+k)N_{\text{hidden\_state}}\cdot \text{TP}\notag$$ Here, $N_{\text{param}}$ is the number of model parameters, $N_{\text{hidden\_state}}$ is the size of the hidden state per device, and $k$ is a coefficient representing extra memory overhead from CUDA Graph duplication. This memory usage function is minimized when $\text{TP}=\sqrt{\frac{N_{\text{param}}}{(1+k)N_{\text{hidden\_state}}}}$. DeepSeek-V3 uses an intermediate size of 18,432. During the prefill phase, CUDA Graph is typically disabled, so $k = 0$. However, the token size per device can easily exceed 2,048, resulting in an optimal TP size of 3 or less. In the decode phase, a practical configuration might use 128 tokens per device and set $k = 8$. In this case, the memory-optimal TP size is 4. In both phases, a lower TP degree minimizes memory usage per device. As a result, DP may offer a more memory-efficient approach for scaling compared to relying solely on TP.
 - **Minimized Communication Overhead**: In pure tensor parallelism (TP), each feed-forward network (FFN) necessitates two all-reduce operations, resulting in substantial communication overhead. By leveraging data parallelism (DP), we optimize this process to a single reduce-scatter following the prior attention layer and an all-gather before the next, slashing communication costs by 50%. Furthermore, when attention is also computed under pure DP, inter-device communication is entirely eliminated, significantly enhancing overall efficiency.
 
-The integration of DP dense FFN with DP attention is illustrated below. Users can enable this feature by setting `--moe-dense-tp-size=1`.
+The integration of DP dense FFN with DP attention is illustrated in the left figure below. Users can enable this feature by setting `--moe-dense-tp-size=1`.
 
 
 
-<img src="/images/blog/large_scale_ep/dp-ffn.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 60%"></img>
+<img src="/images/blog/large_scale_ep/parallel-design.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 95%; image-orientation: none;"></img>
 
 
 
@@ -65,9 +65,7 @@ The integration of DP dense FFN with DP attention is illustrated below. Users ca
 
 In DeepSeek-V3's Mixture of Experts (MoE) architecture, sparse FFNs require substantial expert weights, creating a significant memory bottleneck. To address this, we implement **Expert Parallelism (EP)**, which distributes expert weights across multiple devices. This approach effectively scales memory capacity while maintaining high performance, though it does introduce challenges like irregular all-to-all communication and workload imbalance.
 
-The diagram below illustrates our Expert Parallelism (EP) implementation using the DeepEP framework, with further details on our EP design and optimizations provided in [the following sections](#large-scale-expert-parallelism).
-
-<img src="/images/blog/large_scale_ep/ep-moe.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 60%"></img>
+The figure in the right figure above illustrates our EP implementation using the DeepEP framework, with further details on our EP design and optimizations provided in [the following sections](#large-scale-expert-parallelism).
 
 
 
