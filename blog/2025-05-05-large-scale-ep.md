@@ -492,68 +492,17 @@ We would like to express our heartfelt gratitude to the following teams and coll
 
 Thank you all for your invaluable support and collaboration.
 
+## Appendix
 
+**Related PRs**
 
-
-
-
-
-**Related PR** (DP attn)
-
-- [https://github.com/sgl-project/sglang/pull/4521](https://github.com/sgl-project/sglang/pull/4521)
-
-**Related PR** (PD Disaggregation)
-
-- [https://github.com/sgl-project/sglang/pull/4654](https://github.com/sgl-project/sglang/pull/4654)
-- [https://github.com/sgl-project/sglang/pull/4880](https://github.com/sgl-project/sglang/pull/4880)
-- [https://github.com/sgl-project/sglang/pull/5435](https://github.com/sgl-project/sglang/pull/5435)
-
-
-
-**Related PR (DeepGEMM)**
-
-- [https://github.com/sgl-project/sglang/pull/5805](https://github.com/sgl-project/sglang/pull/5805)
-- [https://github.com/sgl-project/sglang/pull/5819](https://github.com/sgl-project/sglang/pull/5819)
-- [https://github.com/sgl-project/sglang/pull/5626](https://github.com/sgl-project/sglang/pull/5626)
-
-
-
-**Related PR** (DeepEP)
-
-- [https://github.com/sgl-project/sglang/pull/4232](https://github.com/sgl-project/sglang/pull/4232)
-- [https://github.com/sgl-project/sglang/pull/4610](https://github.com/sgl-project/sglang/pull/4610)
-- [https://github.com/sgl-project/sglang/pull/4767](https://github.com/sgl-project/sglang/pull/4767)
-- [https://github.com/sgl-project/sglang/pull/4770](https://github.com/sgl-project/sglang/pull/4770)
-- [https://github.com/sgl-project/sglang/pull/5068](https://github.com/sgl-project/sglang/pull/5068)
-- [https://github.com/sgl-project/sglang/pull/5277](https://github.com/sgl-project/sglang/pull/5277)
-- [https://github.com/deepseek-ai/DeepEP/pull/142](https://github.com/deepseek-ai/DeepEP/pull/142)
-
-
-
-**Related PR** (LM head)
-
-- [https://github.com/sgl-project/sglang/pull/5558](https://github.com/sgl-project/sglang/pull/5558)
-
-**Related PR (Dense FFNs)**
-
-- [https://github.com/sgl-project/sglang/pull/4836](https://github.com/sgl-project/sglang/pull/4836)
-- [https://github.com/sgl-project/sglang/pull/5657](https://github.com/sgl-project/sglang/pull/5657)
-- [https://github.com/sgl-project/sglang/pull/5558](https://github.com/sgl-project/sglang/pull/5558)
-
-**Related PR** (Disposable Tensor)
-
-- [https://github.com/sgl-project/sglang/pull/5085](https://github.com/sgl-project/sglang/pull/5085)
-
-**Related PR** (EPLB)
-
-- [https://github.com/sgl-project/sglang/pull/5295](https://github.com/sgl-project/sglang/pull/5295)
-
-**Related PR** (TBO)
-
-- [https://github.com/sgl-project/sglang/pull/4068](https://github.com/sgl-project/sglang/pull/4068)
-
-**Related PR** (Expert Distribution)
-
-- [https://github.com/sgl-project/sglang/pull/4435](https://github.com/sgl-project/sglang/pull/4435)
-- [https://github.com/sgl-project/sglang/pull/4957](https://github.com/sgl-project/sglang/pull/4957)
-- [https://github.com/sgl-project/sglang/pull/5890](https://github.com/sgl-project/sglang/pull/5890)
+- DP Attention: [#4521](https://github.com/sgl-project/sglang/pull/4521)
+- PD Disaggregation: [#4654](https://github.com/sgl-project/sglang/pull/4654), [#4880](https://github.com/sgl-project/sglang/pull/4880), [#5435](https://github.com/sgl-project/sglang/pull/5435)
+- DeepGEMM: [#5805](https://github.com/sgl-project/sglang/pull/5805), [#5819](https://github.com/sgl-project/sglang/pull/5819), [#5626](https://github.com/sgl-project/sglang/pull/5626)
+- DeepEP: [#4232](https://github.com/sgl-project/sglang/pull/4232), [#4610](https://github.com/sgl-project/sglang/pull/4610), [#4767](https://github.com/sgl-project/sglang/pull/4767), [#4770](https://github.com/sgl-project/sglang/pull/4770), [#5068](https://github.com/sgl-project/sglang/pull/5068), [#5277](https://github.com/sgl-project/sglang/pull/5277), [#142](https://github.com/deepseek-ai/DeepEP/pull/142)
+- LM head: [#5558](https://github.com/sgl-project/sglang/pull/5558)
+- Dense FFNs: [#4836](https://github.com/sgl-project/sglang/pull/4836), [#5657](https://github.com/sgl-project/sglang/pull/5657), [#5558](https://github.com/sgl-project/sglang/pull/5558)
+- Disposable Tensor: [#5085](https://github.com/sgl-project/sglang/pull/5085)
+- EPLB: [#5295](https://github.com/sgl-project/sglang/pull/5295)
+- TBO: [#4068](https://github.com/sgl-project/sglang/pull/4068)
+- Expert Distribution: [#4435](https://github.com/sgl-project/sglang/pull/4435), [#4957](https://github.com/sgl-project/sglang/pull/4957), [#5890](https://github.com/sgl-project/sglang/pull/5890)
