@@ -47,11 +47,11 @@ DeepSeek employs **Multi-head Latent Attention (MLA)** to effectively model comp
 
 ### Dense FFNs
 
-Despite DeepSeek-V3 featuring only three dense FFN layers, their computation can significantly increase peak memory usage, potentially leading to system crashes if not carefully managed. To address this, we adopt **Data Parallelism (DP)** over tensor parallelism (TP), leveraging the following advantages:
+Despite DeepSeek-V3 only uses three dense feed-forward network (FFN) layers, their computation can significantly increase peak memory usage, potentially leading to system crashes if not carefully managed. To address this, we adopt **Data Parallelism (DP)** over tensor parallelism (TP), leveraging the following advantages:
 
 - **Enhanced Scalability**: With an intermediate dimension of 18,432, high TP degrees (e.g., TP32) result in inefficient fragmentation into small-unit segments (e.g., 576 units), which are not divisible by 128—a common alignment boundary for modern GPUs such as H100. This misalignment hampers computational efficiency and memory utilization. DP provides a more scalable solution by avoiding fragmentation, ensuring balanced workload distribution across devices.
-- **Optimized Memory Efficiency**: Traditionally, tensor parallelism (TP) reduces memory usage as worker size increases, but this advantage diminishes under data-parallel (DP) attention. In a pure TP setup, memory demand scales with DP size as: $$\text{Memory}=\frac{N_{\text{param}}}{\text{TP}}+(1+k)N_{\text{hidden\_state}}\cdot \text{TP}\notag$$ Here, $N_{\text{param}}$ is the number of model parameters, $N_{\text{hidden\_state}}$ is the size of the hidden state per device, and $k$ is a coefficient representing extra memory overhead from CUDA Graph duplication. This memory usage function is minimized when $\text{TP}=\sqrt{\frac{N_{\text{param}}}{(1+k)N_{\text{hidden\_state}}}}$. DeepSeek-V3 uses an intermediate size of 18,432. During the prefill phase, CUDA Graph is typically disabled, so $k = 0$. However, the token size per device can easily exceed 2,048, resulting in an optimal TP size of 3 or less. In the decode phase, a practical configuration might use 128 tokens per device and set $k = 8$. In this case, the memory-optimal TP size is 4. In both phases, a lower TP degree minimizes memory usage per device. As a result, DP may offer a more memory-efficient approach for scaling compared to relying solely on TP.
-- **Minimized Communication Overhead**: In pure tensor parallelism (TP), each feed-forward network (FFN) necessitates two all-reduce operations, resulting in substantial communication overhead. By leveraging data parallelism (DP), we optimize this process to a single reduce-scatter following the prior attention layer and an all-gather before the next, slashing communication costs by 50%. Furthermore, when attention is also computed under pure DP, inter-device communication is entirely eliminated, significantly enhancing overall efficiency.
+- **Optimized Memory Efficiency**: Traditionally, TP reduces memory usage as worker size increases, but this advantage diminishes under DP attention. In a pure TP setup, memory demand scales with DP size as: $$\text{Memory}=\frac{N_{\text{param}}}{\text{TP}}+(1+k)N_{\text{hidden\_state}}\cdot \text{TP}\notag$$ Here, $N_{\text{param}}$ is the number of model parameters, $N_{\text{hidden\_state}}$ is the size of the hidden state per device, and $k$ is a coefficient representing extra memory overhead from CUDA Graph duplication. This memory usage function is minimized when $\text{TP}=\sqrt{\frac{N_{\text{param}}}{(1+k)N_{\text{hidden\_state}}}}$. DeepSeek-V3 uses an intermediate size of 18,432. During the prefill phase, CUDA Graph is typically disabled, so $k = 0$. However, the token size per device can easily exceed 2,048, resulting in an optimal TP size of 3 or less. In the decode phase, a practical configuration might use 128 tokens per device and set $k = 8$. In this case, the memory-optimal TP size is 4. In both phases, a lower TP degree minimizes memory usage per device. As a result, DP may offer a more memory-efficient approach for scaling compared to relying solely on TP.
+- **Minimized Communication Overhead**: In pure TP, each FFN necessitates two all-reduce operations, resulting in substantial communication overhead. By leveraging DP, we optimize this process to a single reduce-scatter following the prior attention layer and an all-gather before the next, reducing communication costs by 50%. Furthermore, when attention is also computed under pure DP, inter-device communication is entirely eliminated, significantly enhancing overall efficiency.
 
 The integration of DP dense FFN with DP attention is illustrated in the left figure below. Users can enable this feature by setting `--moe-dense-tp-size=1`.
 
@@ -71,7 +71,7 @@ The figure in the right figure above illustrates our EP implementation using the
 
 ### LM Head
 
-The LM head computes output probabilities over a large vocabulary, a resource-intensive operation traditionally handled with **Vocabulary Parallelism** to aggregate token logits from TP groups. To enhance scalability and efficiency, we adopt **Data Parallelism (DP)**, mirroring our dense FFN strategy. This reduces memory overhead and simplifies communication across devices, delivering a more streamlined solution.
+The LM head computes output probabilities over a large vocabulary, a resource-intensive operation traditionally handled with vocabulary parallelism to aggregate token logits from TP groups. To enhance scalability and efficiency, we adopt **Data Parallelism (DP)**, mirroring our dense FFN strategy. This reduces memory overhead and simplifies communication across devices, delivering a more streamlined solution.
 
 
 
@@ -125,10 +125,10 @@ More details can be found in our [design document](https://docs.google.com/docum
 
 DeepEP provides two specialized dispatch modes to address varying workload demands:
 
-- **Normal Dispatch**: Optimized for handling long input sequences, such as during the prefill phase, this mode prioritizes maximum computational throughput. However, it generates symbolic shapes that are incompatible with CUDA Graph, rendering it less effective for the decoding phase, where kernel launch overhead becomes a significant bottleneck.
+- **Normal Dispatch**: Optimized for handling long input sequences, such as during the prefill phase, this mode prioritizes maximum computational throughput. However, it generates symbolic shapes that are incompatible with CUDA Graph, rendering it less effective for the decode phase, where kernel launch overhead becomes a significant bottleneck.
 - **Low-Latency Dispatch**: Tailored for generating output tokens during the decode phase, this mode prioritizes minimal delay to ensure real-time performance. It supports CUDA Graph but requires preallocating a fixed memory size. If the memory demand exceeds this preallocation, a runtime error occurs.
 
-In SGLang, the integration of DeepEP provides **auto mode** that dynamically selects between these two dispatch modes based on the workload. However, without PD disaggregation, the auto mode faces a limitation: it cannot simultaneously support both normal dispatch (for prefill) and low-latency dispatch (for decode) within the same device group. This restriction hinders its compatibility with data-parallel (DP) attention, which is crucial for memory-efficient inference. The compatibility of each mode is outlined in the table below:
+In SGLang, the integration of DeepEP provides **auto mode** that dynamically selects between these two dispatch modes based on the workload. However, without PD disaggregation, the auto mode faces a limitation: it cannot simultaneously support both normal dispatch (for prefill) and low-latency dispatch (for decode) within the same device group. This restriction hinders its compatibility with DP attention, which is crucial for memory-efficient inference. The compatibility of each mode is outlined in the table below:
 
 | **Mode** | **Long Input** | **Long Output** | **DP Attention** | **CUDA Graph** |
 | --- | --- | --- | --- | --- |
@@ -142,15 +142,15 @@ PD disaggregation addresses this by separating prefill and decode phases, allowi
 
 ### DeepGEMM Integration
 
-DeepGEMM is another high-efficient library developed by the DeepSeek team, specifically designed to optimize computations in Mixture of Experts (MoE) models. It provides two specialized functions for handling MoE-related matrix multiplications (Grouped GEMMs), each tailored to different phases of the inference process.
+[DeepGEMM](https://github.com/deepseek-ai/DeepGEMM) is another high-efficient library developed by the DeepSeek team, specifically designed to optimize computations in MoE models. It provides two specialized functions for handling MoE-related matrix multiplications (Grouped GEMMs), each tailored to different phases of the inference process.
 
 - **Grouped GEMMs (contiguous layout):** This kernel is designed for dynamic input shapes, making it ideal for the prefill phase of MoE inference. It processes inputs where the data for different experts is concatenated contiguously, allowing for flexible handling of varying input sizes.
-- **Grouped GEMMs (masked layout):** This kernel assumes a fixed input shape and uses a mask tensor to compute only the valid portions of the input. It is compatible with CUDA Graph, which optimizes kernel launches, making it well-suited for the decoding phase where reducing overhead is critical.
+- **Grouped GEMMs (masked layout):** This kernel assumes a fixed input shape and uses a mask tensor to compute only the valid portions of the input. It is compatible with CUDA Graph, which optimizes kernel launches, making it well-suited for the decode phase where reducing overhead is critical.
 
 DeepGEMM integrates smoothly with the dispatch modes of DeepEP:
 
 - For the **contiguous layout kernel**, which is used with **normal dispatch** in the prefill phase, an additional step is required. Since normal dispatch outputs a symbolic shape, a permutation is needed to transform the output into the contiguous format expected by the kernel. We referred to the LightLLM project and implemented a custom Triton kernel for efficient permutation. This kernel ensures that the output from normal dispatch is correctly rearranged, enabling smooth integration with the contiguous GEMM kernel.
-- The **masked layout kernel** pairs seamlessly with DeepEP’s **low-latency dispatch**, as both are optimized for the decoding phase and support CUDA Graph.
+- The **masked layout kernel** pairs seamlessly with DeepEP’s **low-latency dispatch**, as both are optimized for the decode phase and support CUDA Graph.
 
 SGLang also integrates DeepGEMM for MoE computation under tensor parallelism. Additionally, DeepGEMM provides a highly efficient general GeMM kernel, which can be activated in SGLang by setting the environment variable `SGL_ENABLE_JIT_DeepGEMM` to 1, offering even greater computational efficiency for non-MoE operations.
 
@@ -203,7 +203,7 @@ To optimize, we prioritize submitting computation tasks to the GPU before launch
 
 ### Expert Parallelism Load Balancer
 
-In Mixture of Experts (MoE) models, expert parallelism often leads to uneven workload distribution across GPUs. This imbalance forces the system to wait for the slowest GPU computation or communication, wasting compute cycles and increasing memory usage due to expert activations. As the number of GPUs (Expert Parallelism size) increases, the imbalance issue gets more severe.
+In MoE models, expert parallelism often leads to uneven workload distribution across GPUs. This imbalance forces the system to wait for the slowest GPU computation or communication, wasting compute cycles and increasing memory usage due to expert activations. As the number of GPUs (Expert Parallelism size) increases, the imbalance issue gets more severe.
 
 To address this, DeepSeek developed the [Expert Parallelism Load Balancer (EPLB)](https://github.com/deepseek-ai/EPLB). EPLB takes expert distribution statistics as input and computes an optimal arrangement of experts to minimize imbalance. Users can allocate redundant experts (e.g., 32 additional experts), which, when combined with the original 256, create a pool of 288 experts. This pool allows EPLB to strategically place or replicate experts—for instance, duplicating the most frequently used expert multiple times or grouping a moderately used expert with rarely used ones on a single GPU.
 
@@ -274,9 +274,9 @@ By wrapping `hidden_state` in a `DisposableTensor` and calling `dispose()` when 
 
 ### Expert Workload Extraction and Simulation
 
-SGLang also includes a toolset for analyzing and simulating expert workload distribution in Mixture of Experts (MoE) models. This feature enables users to:
+SGLang also includes a toolset for analyzing and simulating expert workload distribution in MoE models. This feature enables users to:
 
-- **Dump Expert Workload Statistics**: Extract either accumulated statistics or per-batch workload data. Accumulated stats support the Expert Parallelism Load Balancer (EPLB) manager for real-time optimization, while per-batch data provides granular insights for analysis and simulation.
+- **Dump Expert Workload Statistics**: Extract either accumulated statistics or per-batch workload data. Accumulated stats support the EPLB manager for real-time optimization, while per-batch data provides granular insights for analysis and simulation.
 - **Simulate Expert Utilization**: Model expert balance across various configurations without requiring costly hardware or repeated trials. For instance, users can gather workload data from a modest setup (e.g., 2x8xH100 or 8xH200) and simulate the performance for a large-scale 22-node deployment.
 
 This simulation capability allows users to evaluate how factors like rebalancing frequency, node count, or batch size impact system performance. It’s a cost-effective way to fine-tune configurations before scaling up.
@@ -292,8 +292,8 @@ This simulation capability allows users to evaluate how factors like rebalancing
 
 We evaluated the end-to-end performance of two configurations of SGLang ****using DeepSeek-V3 on a cluster of 12 nodes, each equipped with 8 H100 GPUs connected via InfiniBand. This comparison highlights the throughput improvements achieved through advanced optimization techniques.
 
-- **SGLang with TP16 x 6**: The 12 nodes are split into 6 independent groups, each running DeepSeek-V3 inference with a tensor parallelism (TP) size of 16 and data-parallel (DP) attention. Memory constraints force all Mixture of Experts (MoE) layers to share identical parameters, enabling inference with large batch sizes.
-- **SGLang with PD Disaggregation**: This version incorporates prefill-decode (PD) disaggregation and full expert parallelism optimization. We allocate 3 nodes for the prefill phase and 9 nodes for the decode phase. For the Expert Parallelism Load Balancer (EPLB), we adopt a distribution matching the input/output data, as real-time serving statistics are unavailable.
+- **SGLang with TP16 x 6**: The 12 nodes are split into 6 independent groups, each running DeepSeek-V3 inference with a TP size of 16 and DP attention. Memory constraints force all MoE layers to share identical parameters, enabling inference with large batch sizes.
+- **SGLang with PD Disaggregation**: This version incorporates PD disaggregation and full expert parallelism optimization. We allocate 3 nodes for the prefill phase and 9 nodes for the decode phase. For the EPLB, we adopt a distribution matching the input/output data, as real-time serving statistics are unavailable.
 
 With an input length of 500 tokens and an output length of 1500 tokens, we measured throughput across various per-device batch sizes (8, 16, 32, 64, 128, and 256). The results, illustrated in the line graph below, show that Optimized SGLang outperforms Vanilla SGLang by 1.7x to 2.1x, achieving a peak total throughput of 204,836 tokens per second. If we scale up the same configuration to 2,000 GPUs, our implementation can generate about 3 trillion tokens every day. Each user can receive 3,000 output tokens for 1 billion daily users.
 
@@ -303,9 +303,10 @@ With an input length of 500 tokens and an output length of 1500 tokens, we measu
 
 TODO: Update the figure + update the comments
 
-<p style="color:gray;">* Under TP16, we force all Mixture of Experts (MoE) layers to share identical parameters to save memory and enable inference with large batch sizes.</p>
+<p style="color:gray;">* Under TP16, we force all MoE layers to share identical parameters to save memory and enable inference with large batch sizes.</p>
 <p style="color:gray;">** For batch size <= 32, disabling TBO will further boost 27%-40% performance.</p>
-(TODO: temporarily put this old comment) Under TP16x6 (Simulated), we force all Mixture of Experts (MoE) layers to share identical parameters to save memory and enable inference with large batch sizes.
+
+(TODO: temporarily put this old comment) Under TP16x6 (Simulated), we force all MoE layers to share identical parameters to save memory and enable inference with large batch sizes.
 (TODO: temporarily put this old comment) In EP24+EP72 (Amortize Idle GPU), we incorporate the cost of idle prefill GPUs caused by insufficient scales. In EP24+EP72 (Assume No Idle GPU), we estimate scenarios when having correct P:D ratio.
 
 
@@ -315,9 +316,9 @@ TODO: Update the figure + update the comments
 To accommodate varying workload demands, we assessed the prefill (P) and decode (D) phases independently, assuming infinite resources for the untested phase to maximize the workload on the tested nodes. This setup mirrors DeepSeek’s production environment:
 
 - **Prefill Phase**: Tested with 4 nodes (4x8xH100), achieving 50,302 tokens per second per node with a prompt length of 4000.
-- **Decode Phase**: Tested with 9 nodes (9x8xH100, half of DeepSeek’s), achieving 22,282 tokens per second per node with an input length of 2000. Under simulated Multi-Token Prediction (MTP) conditions with deliberately slowed attention mechanisms, throughput remained robust at 17,373 tokens per second per node with an input length of 4000.
+- **Decode Phase**: Tested with 9 nodes (9x8xH100, half of DeepSeek’s), achieving 22,282 tokens per second per node with an input length of 2000. Under simulated MTP conditions with deliberately slowed attention mechanisms, throughput remained robust at 17,373 tokens per second per node with an input length of 4000.
 
-To simulate MTP’s effects, we firstly double the batch size and halve the Key-Value (KV) cache length to maintain the same workload for computations and memory access patterns. Moreover, we insert dummy kernels after the real attention computation to ensure the attention phase takes the same time as in DeepSeek’s profile, accurately reflecting the slowdown caused by MTP’s attention mechanism.
+To simulate MTP’s effects, we firstly double the batch size and halve the Key-Value KV cache length to maintain the same workload for computations and memory access patterns. Moreover, we insert dummy kernels after the real attention computation to ensure the attention phase takes the same time as in DeepSeek’s profile, accurately reflecting the slowdown caused by MTP’s attention mechanism.
 
 These results are illustrated in the bar chart below:
 
@@ -329,7 +330,7 @@ These results are illustrated in the bar chart below:
 
 #### Impact of Batch Size and Attention Time
 
-This section investigates **Two-Batch Overlap (TBO)** performance across varying batch sizes and simulated Multi-Token Prediction (MTP) scenarios.
+This section investigates TBO performance across varying batch sizes and simulated MTP scenarios.
 
 
 
@@ -372,13 +373,11 @@ For the decode phase, we analyzed three configurations: TBO with a batch size of
 
 ### Ablation Study: EPLB
 
-This section evaluates the impact of the Expert Parallelism Load Balancer (EPLB) on system performance through overall throughput analysis and detailed case studies. Given EPLB's sensitivity to workload distribution and distribution shifts in production environments, we focus on qualitative and generalizable insights rather than real-world performance, which requires production data.
+This section evaluates the impact of the EPLB on system performance through overall throughput analysis and detailed case studies. Given EPLB's sensitivity to workload distribution and distribution shifts in production environments, we focus on qualitative and generalizable insights rather than real-world performance, which requires production data.
 
 #### Overall Results
 
 The figure below illustrates EPLB's effect on throughput in large-scale settings. EPLB delivers a significant speedup of 1.49x (prefill) and 2.54x (decode), as expected, due to its ability to mitigate workload imbalances across GPUs. As the number of ranks scales, imbalances grow, and EPLB effectively addresses this in our large-scale experiments, leading to notable throughput improvements.
-
-
 
 
 
@@ -425,7 +424,7 @@ The results are presented below:
 
 DeepSeek’s profile reports a throughput roughly twice that of its production environment. SGLang with default expert imbalance is 20% slower than DeepSeek’s profile, while the simulated perfect EPLB case narrows the gap to 5%.
 
-For decode, we assume DeepSeek’s profile uses 128 sequences per batch with Multi-Token Prediction (MTP) enabled at a 60% acceptance rate, a setting we replicate in our simulated MTP experiment. Results are shown below:
+For decode, we assume DeepSeek’s profile uses 128 sequences per batch with MTP enabled at a 60% acceptance rate, a setting we replicate in our simulated MTP experiment. Results are shown below:
 
 |  | DeepSeek Blog | DeepSeek Profile | SGLang (Default) | SGLang + Simulated MTP (Slow Attention) |
 | --- | --- | --- | --- | --- |
@@ -465,7 +464,7 @@ While our implementation of SGLang for DeepSeek-V3 inference demonstrates signif
 
 1. **Latency Optimization**: The current focus on throughput leaves Time to First Token (TTFT) at 2–5 seconds and Inter-Token Latency (ITL) at approximately 100ms, requiring further optimizations for real-time use cases.
 2. **Sequence Length Constraints**: Limited to shorter sequences due to the use of 96 GPUs. Expanding GPU resources would support longer sequences, essential for specific applications.
-3. **Multi-Token Prediction (MTP) Integration**: SGLang supports MTP but lacks full integration with data-parallel (DP) attention, reducing efficiency in mixed parallelism configurations.
+3. **Multi-Token Prediction (MTP) Integration**: SGLang supports MTP but lacks full integration with DP attention, reducing efficiency in mixed parallelism configurations.
 4. **EPLB Distribution**: The experiments in this blog utilizes in-distribution data for Expert Parallelism Load Balancer (EPLB), which may not reflect real-world variability. Future work should experiment performances when having distribution shifts.
 6. **Flexible Tensor Parallelism (TP) Sizes**: For DeepSeek-V3, memory-optimal TP sizes are 3 or 4, but SGLang supports only pure TP or DP, leading to suboptimal memory use. Flexible TP options are needed.
 
