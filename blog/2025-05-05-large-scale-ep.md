@@ -31,8 +31,8 @@ Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H10
 - [Parallelism Design](#parallelism-design)
 - [Prefill and Decode Disaggregation](#prefill-and-decode-disaggregation)
 - [Large-scale Expert Parallelism](#large-scale-expert-parallelism)
-- [Toolkits](#toolkits)
 - [Evaluation](#evaluation)
+- [Toolkits](#toolkits)
 - [Limitations and Future Work](#limitations-and-future-work)
 - [Conclusion](#conclusion)
 - [Acknowledgment](#acknowledgment)
@@ -75,8 +75,6 @@ The LM head computes output probabilities over a large vocabulary, a resource-in
 
 
 
----
-
 ## Prefill and Decode Disaggregation
 
 Large Language Model (LLM) inference comprises two distinct phases: **Prefill** and **Decode**. The Prefill phase is computation-intensive, processing the entire input sequence, while the Decode phase is memory-intensive, managing the Key-Value (KV) cache for token generation. Traditionally, these phases are handled within a unified engine, where combined scheduling of prefill and decode batches introduces inefficiencies. To address these challenges, we introduce **Prefill and Decode (PD) Disaggregation** in SGLang.
@@ -114,8 +112,6 @@ This separation ensures each phase operates under optimal conditions, maximizing
 - **Flexible API Integration**: SGLang offers adaptable APIs that integrate high-performance RDMA libraries like Mooncake and NIXL, streamlining data transfers.
 
 More details can be found in our [design document](https://docs.google.com/document/d/1rQXJwKd5b9b1aOzLh98mnyMhBMhlxXA5ATZTHoQrwvc/edit?tab=t.0).
-
----
 
 ## Large-scale Expert Parallelism
 
@@ -236,61 +232,13 @@ SGLang implements expert rebalancing in three stages to ensure efficiency and mi
 
 This staged approach ensures that rebalancing is both efficient and non-disruptive, maintaining system performance during updates.
 
----
-
-## Toolkits
-
-### Disposable Tensor
-
-Memory management in PyTorch can be challenging due to persistent object references, especially in GPU-intensive workflows where CUDA memory is a scarce resource. Consider the following example:
-
-```python
-def ffn(hidden_state: torch.Tensor, linear1: nn.Linear, linear2: nn.Linear):
-    intermediate_state = linear1(hidden_state)
-    del hidden_state  # Attempt to free memory, but no effect due to external reference
-    return linear2(nn.ReLU(intermediate_state))
-
-hidden_state = ffn(hidden_state, linear1, linear2)
-```
-
-In this code, `del hidden_state` is intended to release the memory occupied by `hidden_state` after `intermediate_state` is computed. However, as `hidden_state` is still referenced outside the function, the `del` operation has no effect. This increases peak memory usage, risking performance slowdowns or out-of-memory errors.
-
-SGLang addresses this with the DisposableTensor class, which introduces a dispose() method to explicitly and immediately release a tensor’s memory, circumventing Python’s reference counting limitations. Here’s how it works:
-
-```python
-def ffn(hidden_state: torch.Tensor, linear1: nn.Linear, linear2: nn.Linear):
-    intermediate_state = linear1(hidden_state)
-    hidden_state.dispose()  # Immediately releases CUDA memory
-    return linear2(nn.ReLU(intermediate_state))
-
-# Wrap the tensor in DisposableTensor
-hidden_state = DisposableTensor(hidden_state)
-hidden_state = ffn(hidden_state, linear1, linear2)
-```
-
-By wrapping `hidden_state` in a `DisposableTensor` and calling `dispose()` when it’s no longer needed, the CUDA memory is freed right away. This ensures that memory is released as soon as the tensor’s role in the computation is complete, reducing peak memory usage and improving overall efficiency.
-
-
-
-### Expert Workload Extraction and Simulation
-
-SGLang also includes a toolset for analyzing and simulating expert workload distribution in MoE models. This feature enables users to:
-
-- **Dump Expert Workload Statistics**: Extract either accumulated statistics or per-batch workload data. Accumulated stats support the EPLB manager for real-time optimization, while per-batch data provides granular insights for analysis and simulation.
-- **Simulate Expert Utilization**: Model expert balance across various configurations without requiring costly hardware or repeated trials. For instance, users can gather workload data from a modest setup (e.g., 2x8xH100 or 8xH200) and simulate the performance for a large-scale 22-node deployment.
-
-This simulation capability allows users to evaluate how factors like rebalancing frequency, node count, or batch size impact system performance. It’s a cost-effective way to fine-tune configurations before scaling up.
-
-
----
-
 ## Evaluation
 
 ### End-to-end Performance
 
 ##### Overall Throughput Comparison
 
-We evaluated the end-to-end performance of two configurations of SGLang ****using DeepSeek-V3 on a cluster of 12 nodes, each equipped with 8 H100 GPUs connected via InfiniBand. This comparison highlights the throughput improvements achieved through advanced optimization techniques.
+We evaluated the end-to-end performance of two configurations of SGLang using DeepSeek-V3 on a cluster of 12 nodes, each equipped with 8 H100 GPUs connected via InfiniBand. This comparison highlights the throughput improvements achieved through advanced optimization techniques.
 
 - **SGLang with TP16 x 6**: The 12 nodes are split into 6 independent groups, each running DeepSeek-V3 inference with a TP size of 16 and DP attention. Memory constraints force all MoE layers to share identical parameters, enabling inference with large batch sizes.
 - **SGLang with PD Disaggregation**: This version incorporates PD disaggregation and full expert parallelism optimization. We allocate 3 nodes for the prefill phase and 9 nodes for the decode phase. For the EPLB, we adopt a distribution matching the input/output data, as real-time serving statistics are unavailable.
@@ -456,7 +404,50 @@ Key observations include:
 
 While minor enhancements remain—primarily in kernel fusion under "Other Kernels"—SGLang’s decode performance is largely aligned with DeepSeek’s, with prefill optimization as the next focus.
 
----
+
+
+## Toolkits
+
+### Disposable Tensor
+
+Memory management in PyTorch can be challenging due to persistent object references, especially in GPU-intensive workflows where CUDA memory is a scarce resource. Consider the following example:
+
+```python
+def ffn(hidden_state: torch.Tensor, linear1: nn.Linear, linear2: nn.Linear):
+    intermediate_state = linear1(hidden_state)
+    del hidden_state  # Attempt to free memory, but no effect due to external reference
+    return linear2(nn.ReLU(intermediate_state))
+
+hidden_state = ffn(hidden_state, linear1, linear2)
+```
+
+In this code, `del hidden_state` is intended to release the memory occupied by `hidden_state` after `intermediate_state` is computed. However, as `hidden_state` is still referenced outside the function, the `del` operation has no effect. This increases peak memory usage, risking performance slowdowns or out-of-memory errors.
+
+SGLang addresses this with the DisposableTensor class, which introduces a dispose() method to explicitly and immediately release a tensor’s memory, circumventing Python’s reference counting limitations. Here’s how it works:
+
+```python
+def ffn(hidden_state: torch.Tensor, linear1: nn.Linear, linear2: nn.Linear):
+    intermediate_state = linear1(hidden_state)
+    hidden_state.dispose()  # Immediately releases CUDA memory
+    return linear2(nn.ReLU(intermediate_state))
+
+# Wrap the tensor in DisposableTensor
+hidden_state = DisposableTensor(hidden_state)
+hidden_state = ffn(hidden_state, linear1, linear2)
+```
+
+By wrapping `hidden_state` in a `DisposableTensor` and calling `dispose()` when it’s no longer needed, the CUDA memory is freed right away. This ensures that memory is released as soon as the tensor’s role in the computation is complete, reducing peak memory usage and improving overall efficiency.
+
+
+
+### Expert Workload Extraction and Simulation
+
+SGLang also includes a toolset for analyzing and simulating expert workload distribution in MoE models. This feature enables users to:
+
+- **Dump Expert Workload Statistics**: Extract either accumulated statistics or per-batch workload data. Accumulated stats support the EPLB manager for real-time optimization, while per-batch data provides granular insights for analysis and simulation.
+- **Simulate Expert Utilization**: Model expert balance across various configurations without requiring costly hardware or repeated trials. For instance, users can gather workload data from a modest setup (e.g., 2x8xH100 or 8xH200) and simulate the performance for a large-scale 22-node deployment.
+
+This simulation capability allows users to evaluate how factors like rebalancing frequency, node count, or batch size impact system performance. It’s a cost-effective way to fine-tune configurations before scaling up.
 
 ## Limitations and Future Work
 
@@ -478,7 +469,7 @@ By leveraging PD disaggregation, DeepEP, and a carefully crafted parallelism des
 
 We would like to express our heartfelt gratitude to the following teams and collaborators:
 
-- **SGLang Core Team and Community Contributors** — Jingyi Chen, Cheng Wan, Liangsheng Yin, Baizhou Zhang, Ke Bao, Jiexin Liang, Xiaoyu Zhang, Yanbo Yang, Fan Yin, Chao Wang, Laixin Xie, Runkai Tao, Yuhong Guo, Kaihong Zhang, Qilin Tian, Peng Zhang, Yi Zhang, Yineng Zhang, Byron Hsu, and many others.
+- **SGLang Core Team and Community Contributors** — Jingyi Chen, Cheng Wan, Liangsheng Yin, Baizhou Zhang, Ke Bao, Jiexin Liang, Xiaoyu Zhang, Yanbo Yang, Fan Yin, Chao Wang, Laixin Xie, Runkai Tao, Yuhong Guo, Kaihong Zhang, Lei Yu, Qilin Tian, Peng Zhang, Yi Zhang, Yineng Zhang, Byron Hsu, and many others.
 - **[Atlas Cloud](https://www.atlascloud.ai) Team** —  Jerry Tang, Wei Xu, Simon Xue, Harry He, Eva Ma, and colleagues — for providing a 96-device NVIDIA H100 cluster and offering responsive engineering support.
 - **NVIDIA Solution Architect Team** — Ting Xu, Jinyan Chen, and colleagues — for their work on the seamless integration of expert parallelism.
 - **NVIDIA Enterprise Product Team** — Trevor Morris, Elfie Guo, Kaixi Hou, Kushan Ahmadian, and colleagues — for optimizing the DeepSeek R1 kernels.
