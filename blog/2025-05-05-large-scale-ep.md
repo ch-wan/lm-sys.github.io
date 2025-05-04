@@ -160,14 +160,14 @@ SGLang also integrates DeepGEMM for MoE computation under tensor parallelism. Ad
 
 In multi-node environments, limited communication bandwidth can significantly increase overall latency. To tackle this challenge, we implemented **Two-batch Overlap (TBO)** following [DeepSeek's system design](https://github.com/deepseek-ai/profile-data). TBO splits a single batch into two micro-batches, allowing computation and communication to overlap, which also lowers peak memory usage by halving the effective batch size. However, putting TBO into practice introduces specific implementation difficulties.
 
-#### Implementation Challenges
+##### Implementation Challenges
 
 Although DeepSeek released the design framework of TBO, there are two slight implementation challenges.
 
 - **Code Complexity**: Directly coding TBO can lead to duplicated logic for managing multiple micro-batches. This increases the complexity of the codebase, making it harder to maintain and prone to errors, especially as the number of micro-batches or overlapping scenarios grows.
 - **Synchronization Issues in the Prefill Phase**: Achieving effective overlap between computation and communication needs consideration when the **normal dispatch** in DeepEP block the CPU. This blocking behavior can stall the pipeline, leaving the GPU idle and undermining the performance benefits of TBO.
 
-#### Abstraction for Clean Implementation
+##### Abstraction for Clean Implementation
 
 To create a more maintainable and reusable codebase, we use an abstraction layer consisting of operations and yield points. This method simplifies development by allowing us to write code as if handling a single micro-batch, while strategically pausing execution by inserting yield points to let other micro-batches proceed. It eliminates code duplication, reduces the potential need for variable postfixes, and efficiently manages cases where some executions complete at a layer's end while others have not. Additionally, it supports easy adaptation to different overlapping region choices or future enhancements, like a three-batch overlap, with minimal code changes. Below is a concise demonstration of this approach:
 
@@ -188,7 +188,7 @@ def _forward_attn(self, state):
 
 This abstraction keeps the codebase clean and adaptable, making it ideal for complex processing scenarios.
 
-#### Prefill Overlapping Implementation
+##### Prefill Overlapping Implementation
 
 We refine the launch order during the prefill phase to avoid CPU-blocking via the dispatch operation in DeepEP, even though we are using its asynchronous mode. Specifically:
 
@@ -217,7 +217,7 @@ In the figure below, we demonstrate the effects of scale and EPLB algorithm to t
 
 
 
-#### EPLB for Real-World Serving
+##### EPLB for Real-World Serving
 
 For EPLB to be effective, the input distribution must closely match the actual serving workload. Two strategies enhance this alignment:
 
@@ -226,7 +226,7 @@ For EPLB to be effective, the input distribution must closely match the actual s
 
 Even with EPLB, some imbalance is inevitable, making further optimization a valuable future direction.
 
-#### Implementation of Rebalancing
+##### Implementation of Rebalancing
 
 SGLang implements expert rebalancing in three stages to ensure efficiency and minimal disruption:
 
@@ -288,7 +288,7 @@ This simulation capability allows users to evaluate how factors like rebalancing
 
 ### End-to-end Performance
 
-#### Overall Throughput Comparison
+##### Overall Throughput Comparison
 
 We evaluated the end-to-end performance of two configurations of SGLang ****using DeepSeek-V3 on a cluster of 12 nodes, each equipped with 8 H100 GPUs connected via InfiniBand. This comparison highlights the throughput improvements achieved through advanced optimization techniques.
 
@@ -311,7 +311,7 @@ TODO: Update the figure + update the comments
 
 
 
-#### Separate Performance Analysis of Prefill and Decode Phases
+##### Separate Performance Analysis of Prefill and Decode Phases
 
 To accommodate varying workload demands, we assessed the prefill (P) and decode (D) phases independently, assuming infinite resources for the untested phase to maximize the workload on the tested nodes. This setup mirrors DeepSeek’s production environment:
 
@@ -328,7 +328,7 @@ These results are illustrated in the bar chart below:
 
 ### Ablation Study: Two-batch Overlap
 
-#### Impact of Batch Size and Attention Time
+##### Impact of Batch Size and Attention Time
 
 This section investigates TBO performance across varying batch sizes and simulated MTP scenarios.
 
@@ -348,7 +348,7 @@ TBO’s impact in the decode phase varies by scenario, with performance tied to 
 - **Simulated MTP Scenario**: TBO provides the most substantial speedup in simulated MTP cases when processing 128 requests to generate 256 tokens per decode step. This is due to prolonged attention processing time, which aligns computation (e.g., DP Attention layers) with DeepEP communication overhead (e.g., combine and dispatch steps). The evaluation shows a 35% speedup at 128 tokens/device, with throughput 21,940 tokens per second compared to 16,161 without TBO.
 - **Real Test Cases**: Speedup in practical scenarios is contingent on batch size exceeding a threshold between 64 and 128 tokens, reaching 17,220 tokens per second at 128 tokens. Below this, TBO yields minimal or negative gains (e.g., -27% at 32 tokens/device), as small decode batch sizes hinder kernel efficiency.
 
-#### Detail Breakdown
+##### Detail Breakdown
 
 We evaluated three prefill scenarios: TBO with 16k tokens per batch, TBO with 8k tokens, and no-TBO with 8k tokens. The figure below reveals key insights:
 
@@ -375,7 +375,7 @@ For the decode phase, we analyzed three configurations: TBO with a batch size of
 
 This section evaluates the impact of the EPLB on system performance through overall throughput analysis and detailed case studies. Given EPLB's sensitivity to workload distribution and distribution shifts in production environments, we focus on qualitative and generalizable insights rather than real-world performance, which requires production data.
 
-#### Overall Results
+##### Overall Results
 
 The figure below illustrates EPLB's effect on throughput in large-scale settings. EPLB delivers a significant speedup of 1.49x (prefill) and 2.54x (decode), as expected, due to its ability to mitigate workload imbalances across GPUs. As the number of ranks scales, imbalances grow, and EPLB effectively addresses this in our large-scale experiments, leading to notable throughput improvements.
 
@@ -385,7 +385,7 @@ The figure below illustrates EPLB's effect on throughput in large-scale settings
 
 
 
-#### Case Study: Workload Imbalance Versus Overall Throughput
+##### Case Study: Workload Imbalance Versus Overall Throughput
 
 To explore the relationship between workload imbalance and throughput, we conducted a case study using a decode experiment with 1800 input tokens, 100 output tokens, and a batch size of 256. Throughput and balancedness (average token count divided by maximum token count across experts) were plotted against decoding steps:
 
@@ -393,7 +393,7 @@ To explore the relationship between workload imbalance and throughput, we conduc
 
 The results reveal a strong correlation between balancedness and throughput, emphasizing the importance of maintaining high balancedness for optimal performance.
 
-#### Case Study: Expert Distribution Statistics
+##### Case Study: Expert Distribution Statistics
 
 The following figure presents expert distribution statistics for prefill and decode sample data:
 
@@ -410,7 +410,7 @@ These findings highlight EPLB's role in addressing workload imbalances and the v
 
 This section compares SGLang’s performance with DeepSeek’s inference system, aligning our experimental setup as closely as possible to DeepSeek’s production environment. We analyze overall throughput and detailed kernel breakdowns, benchmarking against DeepSeek’s blog and public profile data.
 
-#### Overall Throughput
+##### Overall Throughput
 
 For prefill, we tested a scenario with 16,384 tokens per device and an input length of 4,096. Due to uncertainty in DeepSeek’s expert distribution, we evaluated two cases: one with default expert distribution and another with simulated perfect EPLB (random expert selection following group-limited routing semantics) as a performance upper bound.
 
@@ -435,7 +435,7 @@ For decode, we assume DeepSeek’s profile uses 128 sequences per batch with MTP
 
 Using half the nodes of DeepSeek, SGLang with simulated MTP is only 1.5% slower than DeepSeek’s profile. In a higher batch size setting (256 sequences, 2,000 input length), SGLang achieves 22,282 tokens per second per node, demonstrating strong scalability.
 
-#### Detail Breakdown
+##### Detail Breakdown
 
 The figure below breaks down kernel execution times for prefill, including unit test results as a theoretical upper bound:
 
