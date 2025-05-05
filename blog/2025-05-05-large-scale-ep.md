@@ -23,7 +23,7 @@ This blog dives into our parallelism design, optimization methods, and results. 
 
 ✅ SGLang now supports prefill-decode (PD) disaggregation and large-scale expert parallelism (EP), including the full functionality of [DeepEP](https://github.com/deepseek-ai/DeepEP), [DeepGEMM](https://github.com/deepseek-ai/DeepGEMM), and [EPLB](https://github.com/deepseek-ai/eplb).
 
-✅ Leveraging these new features, our team successfully replicated DeepSeek's inference system using 12 nodes, each with 8 H100 GPUs. In total, SGLang achieves a throughput of 54.5k input tokens per second and 22.3k output tokens per second on each computation node for input sequences of 2000 tokens.
+✅ Leveraging these new features, our team successfully replicated DeepSeek's inference system using 12 nodes, each with 8 H100 GPUs. In total, SGLang achieves a throughput of 52.3k input tokens per second and 22.3k output tokens per second on each computation node for input sequences of 2000 tokens.
 
 ✅ This blog delves into the technical details of our approach, focusing on optimizations for efficiency, peak memory usage reduction, and workload balancing. The profile results show that our implementation achieves on-par performance with the official DeepSeek’s report.
 
@@ -472,7 +472,7 @@ While our implementation of SGLang for DeepSeek-V3 inference demonstrates signif
 
 ## Conclusion
 
-By leveraging PD disaggregation, DeepEP, and a carefully crafted parallelism design, we’ve reproduced DeepSeek’s inference framework in SGLang with exceptional performance. Our open-source efforts—achieving 54.5k input tokens per second and 22.3k output tokens per second—demonstrate SGLang’s power for large-scale LLM inference. We invite the community to explore, replicate, and extend this work to push the boundaries of efficient AI deployment.
+By leveraging PD disaggregation, DeepEP, and a carefully crafted parallelism design, we’ve reproduced DeepSeek’s inference framework in SGLang with exceptional performance. Our open-source efforts—achieving 52.3k input tokens per second and 22.3k output tokens per second—demonstrate SGLang’s power for large-scale LLM inference. We invite the community to explore, replicate, and extend this work to push the boundaries of efficient AI deployment.
 
 
 ## Acknowledgment
