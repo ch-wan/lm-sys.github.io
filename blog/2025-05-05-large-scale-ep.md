@@ -3,8 +3,6 @@ title: "Deploying DeepSeek with PD Disaggregation and Large-scale Expert Paralle
 author: "The SGLang Team"
 date: "May 5, 2025"
 previewImg: /images/blog/large_scale_ep/cover.jpg
-
-
 ---
 
 DeepSeek is a popular open-source large language model (LLM) praised for its strong performance. However, its large size and unique architecture, which uses Multi-head Latent Attention (MLA) and Mixture of Experts (MoE), require an advanced system for efficient serving at scale. In this blog, we explain how we match DeepSeek's inference system performance with SGLang.
@@ -240,30 +238,14 @@ This staged approach ensures that rebalancing is both efficient and non-disrupti
 
 ### End-to-end Performance
 
-##### Overall Throughput Comparison
+##### Experimental Setup
 
-We evaluated the end-to-end performance of two configurations of SGLang using DeepSeek-V3 on a cluster of 12 nodes, each equipped with 8 H100 GPUs connected via InfiniBand. This comparison highlights the throughput improvements achieved through advanced optimization techniques.
+We evaluated the end-to-end performance of two configurations of SGLang using DeepSeek-V3 on a multi-node cluster, each equipped with 8 H100 GPUs connected via InfiniBand. This comparison highlights the throughput improvements achieved through advanced optimization techniques.
 
-- **SGLang with TP16 x 6**: The 12 nodes are split into 6 independent groups, each running DeepSeek-V3 inference with a TP size of 16 and DP attention. Memory constraints force all MoE layers to share identical parameters, enabling inference with large batch sizes.
-- **SGLang with PD Disaggregation**: This version incorporates PD disaggregation and full expert parallelism optimization. We allocate 3 nodes for the prefill phase and 9 nodes for the decode phase. For the EPLB, we adopt a distribution matching the input/output data, as real-time serving statistics are unavailable.
+- **SGLang with TP16 x 6**: Every two nodes are paired with an independent group, running DeepSeek-V3 inference with a TP size of 16 and DP attention.
+- **SGLang with PD Disaggregation**: This version incorporates PD disaggregation and full expert parallelism optimization. For the EPLB, we adopt a distribution matching the input/output data, as real-time serving statistics are unavailable.
 
-With an input length of 500 tokens and an output length of 1500 tokens, we measured throughput across various per-device batch sizes (8, 16, 32, 64, 128, and 256). The results, illustrated in the line graph below, show that Optimized SGLang outperforms Vanilla SGLang by 1.7x to 2.1x, achieving a peak total throughput of 204,836 tokens per second. If we scale up the same configuration to 2,000 GPUs, our implementation can generate about 3 trillion tokens every day. Each user can receive 3,000 output tokens for 1 billion daily users.
-
-<img src="/images/blog/large_scale_ep/e2e-throughput.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 60%"></img>
-
-
-
-TODO: Update the figure + update the comments
-
-<p style="color:gray;">* Under TP16, we force all MoE layers to share identical parameters to save memory and enable inference with large batch sizes.</p>
-<p style="color:gray;">** For batch size <= 32, disabling TBO will further boost 27%-40% performance.</p>
-
-(TODO: temporarily put this old comment) Under TP16x6 (Simulated), we force all MoE layers to share identical parameters to save memory and enable inference with large batch sizes.
-(TODO: temporarily put this old comment) In EP24+EP72 (Amortize Idle GPU), we incorporate the cost of idle prefill GPUs caused by insufficient scales. In EP24+EP72 (Assume No Idle GPU), we estimate scenarios when having correct P:D ratio.
-
-
-
-##### Separate Performance Analysis of Prefill and Decode Phases
+##### Performance Analysis of Prefill and Decode Phases
 
 To accommodate varying workload demands, we assessed the prefill (P) and decode (D) phases independently, assuming infinite resources for the untested phase to maximize the workload on the tested nodes. This setup mimics DeepSeek’s environment:
 
