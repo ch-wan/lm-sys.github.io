@@ -10,7 +10,7 @@ DeepSeek is a popular open-source large language model (LLM) praised for its str
 <img src="/images/blog/large_scale_ep/overall-arch.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 90%; image-orientation: none;"></img>
 
 Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H100 GPUs.
-It uses prefill-decode disaggreegation and large-scale expert parallelism, achieving a speed of **52.3k input tokens per second and 22.3k output tokens per second per node** for 2000-token input sequences.
+It uses prefill-decode disaggreegation and large-scale expert parallelism (EP), achieving a speed of **52.3k input tokens per second and 22.3k output tokens per second per node** for 2000-token input sequences.
 To the best of our knowledge, this represents **the first open-source implementation to nearly match the throughput reported in the official DeepSeek blog** at large scale.
 By deploying this implementation locally, it translates to a cost of $0.20/1M output tokens, which is about one-fifth the cost of the official DeepSeek Chat API.
 Compared to standard tensor parallelism using the same resources, our optimized strategy improves the output throuhgput by up to 5x.
@@ -19,7 +19,7 @@ This blog dives into our parallelism design, optimization methods, and results. 
 
 ## Highlight
 
-✅ SGLang now supports prefill-decode (PD) disaggregation and large-scale expert parallelism (EP), including the full functionality of [DeepEP](https://github.com/deepseek-ai/DeepEP), [DeepGEMM](https://github.com/deepseek-ai/DeepGEMM), and [EPLB](https://github.com/deepseek-ai/eplb).
+✅ SGLang now supports prefill-decode (PD) disaggregation and large-scale EP, including the full functionality of [DeepEP](https://github.com/deepseek-ai/DeepEP), [DeepGEMM](https://github.com/deepseek-ai/DeepGEMM), and [EPLB](https://github.com/deepseek-ai/eplb).
 
 ✅ Leveraging these new features, our team successfully replicated DeepSeek's inference system using 12 nodes, each with 8 H100 GPUs. In total, SGLang achieves a throughput of 52.3k input tokens per second and 22.3k output tokens per second per node for input sequences of 2000 tokens.
 
@@ -120,7 +120,7 @@ More details can be found in our [design document](https://docs.google.com/docum
 
 ### Expert Parallelism with DeepEP
 
-[DeepEP](https://github.com/deepseek-ai/DeepEP), implemented by the DeepSeek team, is a communication library designed to streamline expert parallelism in MoE models. It tackles the challenge of efficiently routing tokens to specific experts across multiple GPUs. By providing optimized communication kernels, DeepEP reduces latency and boosts throughput, making it ideal for large-scale inference tasks.
+[DeepEP](https://github.com/deepseek-ai/DeepEP), implemented by the DeepSeek team, is a communication library designed to streamline EP in MoE models. It tackles the challenge of efficiently routing tokens to specific experts across multiple GPUs. By providing optimized communication kernels, DeepEP reduces latency and boosts throughput, making it ideal for large-scale inference tasks.
 
 DeepEP provides two specialized dispatch modes to address varying workload demands:
 
@@ -200,7 +200,7 @@ To optimize, we prioritize submitting computation tasks to the GPU before launch
 
 ### Expert Parallelism Load Balancer
 
-In MoE models, expert parallelism often leads to uneven workload distribution across GPUs. This imbalance forces the system to wait for the slowest GPU computation or communication, wasting compute cycles and increasing memory usage due to expert activations. As the number of GPUs (Expert Parallelism size) increases, the imbalance issue gets more severe.
+In MoE models, EP often leads to uneven workload distribution across GPUs. This imbalance forces the system to wait for the slowest GPU computation or communication, wasting compute cycles and increasing memory usage due to expert activations. As the number of GPUs (EP size) increases, the imbalance issue gets more severe.
 
 To address this, DeepSeek developed the [Expert Parallelism Load Balancer (EPLB)](https://github.com/deepseek-ai/EPLB). EPLB takes expert distribution statistics as input and computes an optimal arrangement of experts to minimize imbalance. Users can allocate redundant experts (e.g., 32 additional experts), which, when combined with the original 256, create a pool of 288 experts. This pool allows EPLB to strategically place or replicate experts—for instance, duplicating the most frequently used expert multiple times or grouping a moderately used expert with rarely used ones on a single GPU.
 
@@ -251,7 +251,7 @@ We evaluated the end-to-end performance of different configurations of SGLang us
 To accommodate varying workload demands, we independently evaluated the prefill (P) and decode (D) phases, assuming unlimited resources for the non-tested phase to isolate and maximize the load on the tested nodes—mirroring the setup used by DeepSeek. The results are summarized below:
 
 - **Prefill Phase**: On 4 nodes (4×8×H100, EP32), the system achieved per-node throughputs of 57,674, 54,543, and 50,302 tokens per second for prompt lengths of 1K, 2K, and 4K, respectively. As shown in the bar chart below, this represents up to a 3.3× improvement over the TP16 baseline, largely attributable to the optimized GroupedGeMM kernel (DeepGEMM) and two-batch overlap. Assuming a perfectly balanced workload, our system’s throughput is within 5.6% of DeepSeek's official profile.
-- **Decode Phase**: On 9 nodes (9×8×H100, EP72; half the scale of DeepSeek), the system delivered 22,282 tokens per second per node for 2K inputs. Under simulated MTP conditions—with deliberately slowed attention kernels—the throughput remained high at 17,373 tokens per second per node for 4K inputs, only 6.6% below DeepSeek’s official profile. As illustrated in the figure on the right, the performance gains are primarily driven by larger batch sizes enabled by expert parallelism, which improves scalability by reducing memory usage from model weights.
+- **Decode Phase**: On 9 nodes (9×8×H100, EP72; half the scale of DeepSeek), the system delivered 22,282 tokens per second per node for 2K inputs. Under simulated MTP conditions—with deliberately slowed attention kernels—the throughput remained high at 17,373 tokens per second per node for 4K inputs, only 6.6% below DeepSeek’s official profile. As illustrated in the figure on the right, the performance gains are primarily driven by larger batch sizes enabled by EP, which improves scalability by reducing memory usage from model weights.
 
 <img src="/images/blog/large_scale_ep/e2e-prefill-decode.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 80%"></img>
 
