@@ -470,7 +470,7 @@ While our implementation of SGLang for DeepSeek-V3 inference demonstrates signif
 3. **Multi-Token Prediction (MTP) Integration**: SGLang supports MTP but lacks full integration with DP attention, reducing efficiency in mixed parallelism configurations.
 4. **EPLB Distribution**: The experiments in this blog utilizes in-distribution data for Expert Parallelism Load Balancer (EPLB), which may not reflect real-world variability. Future work should experiment performances when having distribution shifts.
 5. **Flexible Tensor Parallelism (TP) Sizes**: For DeepSeek-V3, memory-optimal TP sizes are small but larger than 1. Currently, SGLang only supports pure TP or DP, leading to suboptimal memory use. Flexible TP options are needed.
-6. **Blackwell Support**: Currently, our implementation supports only the NVIDIA Hopper architecture. We are actively working to extend compatibility to the next-generation Blackwell architecture. If you are interested in supporting or sponsoring this development, we welcome your engagement.
+6. **Blackwell Support**: Currently, our implementation supports only the NVIDIA Hopper architecture. We are actively working to extend compatibility to the next-generation Blackwell architecture. If you are interested in supporting or sponsoring this development, welcome to contact [lmsys.org@gmail.com](mailto:lmsys.org@gmail.com).
 
 ---
 
