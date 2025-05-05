@@ -306,7 +306,7 @@ For decode, we assume DeepSeek’s profile uses 128 sequences per batch with MTP
 | Batch Size            | 128           | 128              | 256              | 128                                     |
 | KV Cache Length       | 4,989         | 4,096            | 2,000            | 4,000                                   |
 | Number of Nodes       | 18            | 16               | 9                | 9                                       |
-| Throughput (per node) | 14,800        | 17,630           | 22,282           | 17,373                                  |
+| Throughput (per node) | 14,800        | 18,598           | 22,282           | 17,373                                  |
 
 Using half the nodes of DeepSeek, SGLang with simulated MTP is only 1.5% slower than DeepSeek’s profile. In a higher batch size setting (256 sequences, 2,000 input length), SGLang achieves 22,282 tokens per second per node, demonstrating strong scalability.
 
