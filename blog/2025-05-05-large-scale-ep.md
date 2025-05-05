@@ -266,10 +266,10 @@ TODO: Update the figure + update the comments
 
 ##### Separate Performance Analysis of Prefill and Decode Phases
 
-To accommodate varying workload demands, we assessed the prefill (P) and decode (D) phases independently, assuming infinite resources for the untested phase to maximize the workload on the tested nodes. This setup mirrors DeepSeek’s production environment:
+To accommodate varying workload demands, we assessed the prefill (P) and decode (D) phases independently, assuming infinite resources for the untested phase to maximize the workload on the tested nodes. This setup mimics DeepSeek’s environment:
 
 - **Prefill Phase**: Tested with 4 nodes (4x8xH100), achieving 50,302 tokens per second per node with a prompt length of 4096.
-- **Decode Phase**: Tested with 9 nodes (9x8xH100, half of DeepSeek’s), achieving 22,282 tokens per second per node with an input length of 2000. Under simulated MTP conditions with deliberately slowed attention mechanisms, throughput remained robust at 17,373 tokens per second per node with an input length of 4000.
+- **Decode Phase**: Tested with 9 nodes (9x8xH100, half of DeepSeek’s), achieving 22,282 tokens per second per node with an input length of 2000. Under simulated MTP conditions with deliberately slowed attention mechanisms, throughput remained at 17,373 tokens per second per node with an input length of 4000.
 
 To simulate MTP’s effects, we firstly double the batch size and halve the Key-Value KV cache length to maintain the same workload for computations and memory access patterns. Moreover, we insert dummy kernels after the real attention computation to ensure the attention phase takes the same time as in DeepSeek’s profile, accurately reflecting the slowdown caused by MTP’s attention mechanism.
 
@@ -353,15 +353,15 @@ TBO delivers two significant benefits in the prefill phase, as evidenced by thro
 
 TBO’s impact in the decode phase varies by scenario, with performance tied to batch size and attention processing time:
 
-- **Simulated MTP Scenario**: TBO provides the most substantial speedup in simulated MTP cases when processing 128 requests to generate 256 tokens per decode step. This is due to prolonged attention processing time, which aligns computation (e.g., DP Attention layers) with DeepEP communication overhead (e.g., combine and dispatch steps). The evaluation shows a 35% speedup at 128 tokens/device, with throughput 17,552 tokens per second compared to 12,929 without TBO.
 - **Real Test Cases**: Speedup in practical scenarios is contingent on batch size exceeding a threshold between 64 and 128 tokens. Below this, TBO yields minimal or negative gains (e.g., -27% at 32 tokens/device), as small decode batch sizes hinder kernel efficiency. The speedup reaches 25.5% at 256 tokens with a performance of 22,310 tokens per second.
+- **Simulated MTP Scenario**: TBO provides the most substantial speedup in simulated MTP cases when processing 128 requests to generate 256 tokens per decode step. This is due to prolonged attention processing time, which aligns computation (e.g., DP Attention layers) with DeepEP communication overhead (e.g., combine and dispatch steps). The evaluation shows a 35% speedup at 128 sequences/device, with throughput 17,552 tokens per second compared to 12,929 without TBO.
 
 ##### Detail Breakdown
 
 We evaluated three prefill scenarios: TBO with 16k tokens per batch, TBO with 8k tokens, and no-TBO with 8k tokens. The figure below reveals key insights:
 
-- **Batch Size Impact**: Reducing the batch size from 16k to 8k with TBO results in a slight slowdown, reflecting diminished kernel efficiency with smaller batches.
 - **TBO Efficiency**: Comparing the 8k cases, TBO improves overall efficiency by overlapping computation and communication, as expected.
+- **Batch Size Impact**: Reducing the batch size from 16k to 8k with TBO results in a slight slowdown, reflecting diminished kernel efficiency with smaller batches.
 - **Kernel Performance**: Interestingly, the no-TBO 8k case outperforms the TBO 16k case in per-kernel speed, despite both having an effective batch size of 8k for kernels. This may stem from reduced streaming multiprocessors (SMs) with TBO, potential noisy neighbor effects during overlap, or kernel incompatibility between computation and communication. These findings suggest future optimization directions for SGLang.
 
 <img src="/images/blog/large_scale_ep/tbo-breakdown-prefill.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 80%"></img>
