@@ -239,23 +239,21 @@ This staged approach ensures that rebalancing is both efficient and non-disrupti
 
 ##### Experimental Setup
 
-We evaluated the end-to-end performance of different configurations of SGLang using DeepSeek-V3 on a cluster of 12 nodes, connected via InfiniBand and each equipped with 8 H100 GPUs connected. This evaluation highlights the throughput improvements enabled by our advanced optimization techniques. We compared the following four settings:
+We evaluated the end-to-end performance of different configurations of SGLang using DeepSeek-V3 on a cluster of 12 nodes, connected via InfiniBand and each equipped with 8 H100 GPUs. This evaluation highlights the throughput improvements enabled by our advanced optimization techniques. We compared the following four settings:
 
 - **SGLang with TP16 x 6**: Every two nodes are paired with an independent group, running DeepSeek-V3 inference with a TP size of 16 and DP attention.
-- **SGLang with PD Disaggregation**: This version incorporates PD disaggregation and full expert parallelism optimization. For the EPLB, we adopt a distribution matching the input/output data, as real-time serving statistics are unavailable.
+- **SGLang with PD Disaggregation**: This version incorporates PD disaggregation and full EP optimization. For the EPLB, we adopt a distribution matching the input/output data, as real-time serving statistics are unavailable.
 - **SGLang with PD Disaggregation and simulated MTP**: To simulate MTP’s effects, we firstly double the batch size and halve the Key-Value KV cache length to maintain the same workload for GroupedGeMM computation and memory access. Moreover, we insert dummy kernels after the real attention computation to ensure the attention phase takes the same time as in DeepSeek’s profile, accurately reflecting the slowdown caused by MTP’s attention mechanism. We conservatively assume a 60% acceptance rate under MTP.
 - **DeepSeek Profile Results**: Throughput estimates are derived from [DeepSeek’s official profiling data](https://github.com/deepseek-ai/profile-data).
 
 ##### Performance Analysis of Prefill and Decode Phases
 
-To accommodate varying workload demands, we assessed the prefill (P) and decode (D) phases independently, assuming infinite resources for the untested phase to maximize the workload on the tested nodes. This setup mimics DeepSeek’s environment. The experimental results are listed below:
+To accommodate varying workload demands, we independently evaluated the prefill (P) and decode (D) phases, assuming unlimited resources for the non-tested phase to isolate and maximize the load on the tested nodes—mirroring the setup used by DeepSeek. The results are summarized below:
 
-- **Prefill Phase**: Evaluated on 4 nodes (4×8×H100, EP32), the system achieved per-node throughputs of 57,674, 54,543, and 50,302 tokens per second for prompt lengths of 1K, 2K, and 4K, respectively. As it is illustrated in the bar chart below, compared to TP16, our system yields up to a 3.3× increase in input throughput, primarily due to the optimized GroupedGeMM kernel DeepGEMM and two-batch overlap.
-- **Decode Phase**: Evaluated on 9 nodes (9×8×H100, half the scale of DeepSeek, EP72), the system achieved a per-node throughput of 22,282 tokens per second for 2K input lengths. Under simulated MTP conditions—with deliberately slowed attention operations—the throughput remained high at 17,373 tokens per second per node for 4K inputs. As illustrated in the figure on the right, the performance gains stem primarily from the use of larger batch sizes enabled by expert parallelism, which enhances scalability by reducing memory consumption from model weights.
+- **Prefill Phase**: On 4 nodes (4×8×H100, EP32), the system achieved per-node throughputs of 57,674, 54,543, and 50,302 tokens per second for prompt lengths of 1K, 2K, and 4K, respectively. As shown in the bar chart below, this represents up to a 3.3× improvement over the TP16 baseline, largely attributable to the optimized GroupedGeMM kernel (DeepGEMM) and two-batch overlap. Assuming a perfectly balanced workload, our system’s throughput is within 5.6% of DeepSeek's official profile.
+- **Decode Phase**: On 9 nodes (9×8×H100, EP72; half the scale of DeepSeek), the system delivered 22,282 tokens per second per node for 2K inputs. Under simulated MTP conditions—with deliberately slowed attention kernels—the throughput remained high at 17,373 tokens per second per node for 4K inputs, only 6.6% below DeepSeek’s official profile. As illustrated in the figure on the right, the performance gains are primarily driven by larger batch sizes enabled by expert parallelism, which improves scalability by reducing memory usage from model weights.
 
 <img src="/images/blog/large_scale_ep/e2e-prefill-decode.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 80%"></img>
-
-
 
 ### Profile Results
 
