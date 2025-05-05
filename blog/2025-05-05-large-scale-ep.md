@@ -4,9 +4,8 @@ author: "The SGLang Team"
 date: "May 5, 2025"
 previewImg: /images/blog/large_scale_ep/overall-arch.png
 
+
 ---
-
-
 
 DeepSeek is a popular open-source large language model (LLM) praised for its strong performance. Its large size and unique structure, which uses Multi-head Latent Attention (MLA) and a Mixture of Experts (MoE) approach, require an advanced system for efficient use at scale. In this blog, we explain how we match DeepSeek's inference system performance with SGLang. By applying improved parallel processing and optimizations, we achieved high efficiency and speed.
 
@@ -14,17 +13,19 @@ DeepSeek is a popular open-source large language model (LLM) praised for its str
 
 Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H100 GPUs. It uses prefill-decode disaggreegation and large-scale expert parallelism, achieving a speed of **54.5k input tokens per second and 22.3k output tokens per second per node** for 2000-token input sequences. To the best of our knowledge, this represents **the first open-source implementation to nearly match the throughput reported in the official DeepSeek blog** at a 96-GPU scale. Compared to standard tensor parallelism using the same resources, the new setup improves output speed by up to 2.1x. This blog dives into our parallel design, optimization methods, and results. All components of our work are fully open-source, allowing others to explore and build on our efforts. The code is available at: [https://github.com/sgl-project/sglang/pull/5524](https://github.com/sgl-project/sglang/pull/5524).
 
+---
+
 ## Highlight
 
-✅ SGLang now supports prefill-decode (PD) disaggregation and large-scale expert parallelism (EP), including the full functionality of [DeepEP](https://github.com/deepseek-ai/DeepEP), [DeepGEMM](https://github.com/deepseek-ai/DeepGEMM), and [EPLB](https://github.com/deepseek-ai/eplb).
+✅ SGLang now supports prefill-decode (PD) disaggregation and large-scale expert parallelism (EP), including the full functionality of [DeepEP](https://github.com/deepseek-ai/DeepEP), [DeepGEMM](https://github.com/deepseek-ai/DeepGEMM), and [EPLB](https://github.com/deepseek-ai/eplb).
 
-✅ Leveraging these new features, our team successfully replicated DeepSeek's inference system using 12 nodes, each with 8 H100 GPUs. In total, SGLang achieves a throughput of 54.5k input tokens per second and 22.3k output tokens per second on each computation node for input sequences of 2000 tokens.
+✅ Leveraging these new features, our team successfully replicated DeepSeek's inference system using 12 nodes, each with 8 H100 GPUs. In total, SGLang achieves a throughput of 54.5k input tokens per second and 22.3k output tokens per second on each computation node for input sequences of 2000 tokens.
 
-✅ This blog delves into the technical details of our approach, focusing on optimizations for efficiency, peak memory usage reduction, and workload balancing. The profile results show that our implementation achieves on-par performance with the official DeepSeek’s report.
+✅ This blog delves into the technical details of our approach, focusing on optimizations for efficiency, peak memory usage reduction, and workload balancing. The profile results show that our implementation achieves on-par performance with the official DeepSeek’s report.
 
-✅ All experiments and code are fully open-sourced for community access and further development.
+✅ All experiments and code are fully open-sourced for community access and further development.
 
-
+---
 
 ## Outline
 
@@ -36,6 +37,8 @@ Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H10
 - [Limitations and Future Work](#limitations-and-future-work)
 - [Conclusion](#conclusion)
 - [Acknowledgment](#acknowledgment)
+
+---
 
 ## Parallelism Design
 
@@ -73,7 +76,7 @@ The figure in the right figure above illustrates our EP implementation using the
 
 The LM head computes output probabilities over a large vocabulary, a resource-intensive operation traditionally handled with vocabulary parallelism to aggregate token logits from TP groups. To enhance scalability and efficiency, we adopt **Data Parallelism (DP)**, mirroring our dense FFN strategy. This reduces memory overhead and simplifies communication across devices, delivering a more streamlined solution.
 
-
+---
 
 ## Prefill and Decode Disaggregation
 
@@ -113,6 +116,8 @@ This separation ensures each phase operates under optimal conditions, maximizing
 
 More details can be found in our [design document](https://docs.google.com/document/d/1rQXJwKd5b9b1aOzLh98mnyMhBMhlxXA5ATZTHoQrwvc/edit?tab=t.0).
 
+---
+
 ## Large-scale Expert Parallelism
 
 ### Expert Parallelism with DeepEP
@@ -126,11 +131,11 @@ DeepEP provides two specialized dispatch modes to address varying workload deman
 
 In SGLang, the integration of DeepEP provides **auto mode** that dynamically selects between these two dispatch modes based on the workload. However, without PD disaggregation, the auto mode faces a limitation: it cannot simultaneously support both normal dispatch (for prefill) and low-latency dispatch (for decode) within the same device group. This restriction hinders its compatibility with DP attention, which is crucial for memory-efficient inference. The compatibility of each mode is outlined in the table below:
 
-| **Mode** | **Long Input** | **Long Output** | **DP Attention** | **CUDA Graph** |
-| --- | --- | --- | --- | --- |
-| Normal | ✅ | ❌ | ✅ | ❌ |
-| Low-Latency | ❌ | ✅ | ✅ | ✅ |
-| Auto | ✅ | ✅ | ❌ | ✅ |
+| **Mode**    | **Long Input** | **Long Output** | **DP Attention** | **CUDA Graph** |
+| ----------- | -------------- | --------------- | ---------------- | -------------- |
+| Normal      | ✅              | ❌               | ✅                | ❌              |
+| Low-Latency | ❌              | ✅               | ✅                | ✅              |
+| Auto        | ✅              | ✅               | ❌                | ✅              |
 
 PD disaggregation addresses this by separating prefill and decode phases, allowing normal dispatch for the prefill phase and low-latency dispatch for the decode phase, both under DP attention. This integration optimizes resource utilization and enhances overall performance by aligning the dispatch mode with the specific needs of each phase.
 
@@ -230,6 +235,8 @@ SGLang implements expert rebalancing in three stages to ensure efficiency and mi
 
 This staged approach ensures that rebalancing is both efficient and non-disruptive, maintaining system performance during updates.
 
+---
+
 ## Evaluation
 
 ### End-to-end Performance
@@ -269,6 +276,61 @@ To simulate MTP’s effects, we firstly double the batch size and halve the Key-
 These results are illustrated in the bar chart below:
 
 <img src="/images/blog/large_scale_ep/e2e-prefill-decode.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 80%"></img>
+
+
+
+
+
+### Profile Results
+
+This section compares SGLang’s performance with DeepSeek’s inference system, aligning our experimental setup as closely as possible to DeepSeek’s production environment. We analyze overall throughput and detailed kernel breakdowns, benchmarking against DeepSeek’s blog and public profile data.
+
+##### Overall Throughput
+
+For prefill, we tested a scenario with 16,384 tokens per device and an input length of 4,096. Due to uncertainty in DeepSeek’s expert distribution, we evaluated two cases: one with default expert distribution and another with simulated perfect EPLB (random expert selection following group-limited routing semantics) as a performance upper bound.
+
+The results are presented below:
+
+|                       | DeepSeek Blog (excl. cache hit) | DeepSeek Profile | SGLang (Default) | SGLang + Simulated Perfect EPLB |
+| --------------------- | ------------------------------- | ---------------- | ---------------- | ------------------------------- |
+| Batch Size            | 16,384                          | 16,384           | 16,384           | 16,384                          |
+| Input Length          | N/A                             | 4,096            | 4,096            | 4,096                           |
+| Throughput (per node) | 32,206                          | 62,713           | 50,302           | 59,337                          |
+
+DeepSeek’s profile reports a throughput roughly twice that of its production environment. SGLang with default expert imbalance is 20% slower than DeepSeek’s profile, while the simulated perfect EPLB case narrows the gap to 5%.
+
+For decode, we assume DeepSeek’s profile uses 128 sequences per batch with MTP enabled at a 60% acceptance rate, a setting we replicate in our simulated MTP experiment. Results are shown below:
+
+|                       | DeepSeek Blog | DeepSeek Profile | SGLang (Default) | SGLang + Simulated MTP (Slow Attention) |
+| --------------------- | ------------- | ---------------- | ---------------- | --------------------------------------- |
+| Batch Size            | 128           | 128              | 256              | 128                                     |
+| KV Cache Length       | 4,989         | 4,096            | 2,000            | 4,000                                   |
+| Number of Nodes       | 18            | 16               | 9                | 9                                       |
+| Throughput (per node) | 14,800        | 17,630           | 22,282           | 17,373                                  |
+
+Using half the nodes of DeepSeek, SGLang with simulated MTP is only 1.5% slower than DeepSeek’s profile. In a higher batch size setting (256 sequences, 2,000 input length), SGLang achieves 22,282 tokens per second per node, demonstrating strong scalability.
+
+##### Detail Breakdown
+
+The figure below breaks down kernel execution times for prefill, including unit test results as a theoretical upper bound:
+
+<img src="/images/blog/large_scale_ep/profile-prefill.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 80%"></img>
+
+- **Default EPLB**: Communication kernels exhibit longer execution times and higher variance compared to DeepSeek’s profile, likely due to greater expert imbalance. This leads to extended computation stream bubbles, slowing down overall performance.
+- **Simulated Perfect EPLB**: This setup aligns more closely with DeepSeek’s profile, though discrepancies remain, indicating potential areas for optimization.
+- **Comparison with Unit Tests**: Both DeepSeek and SGLang have a communication time slower than unit test results, while the latter is achievable when disabling TBO, revealing a potential optimization direction if communication is the bottleneck.
+
+SGLang’s decode kernel breakdown aligns closely with DeepSeek’s, as shown below:
+
+<img src="/images/blog/large_scale_ep/profile-decode.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 80%"></img>
+
+Key observations include:
+
+- **Combine Time Discrepancy**: SGLang’s combine operation appears 2x slower than DeepSeek’s due to shorter attention computation, causing communication kernels to busy-wait. In the simulated slow attention experiment, combine time matches DeepSeek’s, confirming this hypothesis.
+- **MoE Performance**: SGLang’s MoE kernels are 25% slower, possibly because DeepSeek’s 18 nodes (versus our 9) distribute experts more efficiently, reducing memory access overhead for GEMM operations.
+- **Dispatch Optimization Potential**: Both DeepSeek and SGLang show dispatch times of ~0.17ms per layer, but unit tests with DeepEP reveal a potential of 0.06ms occupying SMs. Currently, dispatch spends significant time busy-waiting for data. Inserting slow dummy kernels between send/receive operations reduces dispatch time to 0.09ms, and in-flight duration analysis using unit test data suggests further improvements are possible.
+
+While minor enhancements remain—primarily in kernel fusion under "Other Kernels"—SGLang’s decode performance is largely aligned with DeepSeek’s, with prefill optimization as the next focus.
 
 
 
@@ -352,58 +414,7 @@ Key observations include:
 
 These findings highlight EPLB's role in addressing workload imbalances and the value of tailoring expert placement to phase-specific demands.
 
-### Profile Results
-
-This section compares SGLang’s performance with DeepSeek’s inference system, aligning our experimental setup as closely as possible to DeepSeek’s production environment. We analyze overall throughput and detailed kernel breakdowns, benchmarking against DeepSeek’s blog and public profile data.
-
-##### Overall Throughput
-
-For prefill, we tested a scenario with 16,384 tokens per device and an input length of 4,096. Due to uncertainty in DeepSeek’s expert distribution, we evaluated two cases: one with default expert distribution and another with simulated perfect EPLB (random expert selection following group-limited routing semantics) as a performance upper bound.
-
-The results are presented below:
-
-|  | DeepSeek Blog (excl. cache hit) | DeepSeek Profile | SGLang (Default) | SGLang + Simulated Perfect EPLB |
-| --- | --- | --- | --- | --- |
-| Batch Size | 16,384 | 16,384 | 16,384 | 16,384 |
-| Input Length | N/A | 4,096 | 4,096 | 4,096 |
-| Throughput (per node) | 32,206 | 62,713 | 50,302 | 59,337 |
-
-DeepSeek’s profile reports a throughput roughly twice that of its production environment. SGLang with default expert imbalance is 20% slower than DeepSeek’s profile, while the simulated perfect EPLB case narrows the gap to 5%.
-
-For decode, we assume DeepSeek’s profile uses 128 sequences per batch with MTP enabled at a 60% acceptance rate, a setting we replicate in our simulated MTP experiment. Results are shown below:
-
-|  | DeepSeek Blog | DeepSeek Profile | SGLang (Default) | SGLang + Simulated MTP (Slow Attention) |
-| --- | --- | --- | --- | --- |
-| Batch Size | 128 | 128 | 256 | 128 |
-| KV Cache Length | 4,989 | 4,096 | 2,000 | 4,000 |
-| Number of Nodes | 18 | 16 | 9 | 9 |
-| Throughput (per node) | 14,800 | 17,630 | 22,282 | 17,373 |
-
-Using half the nodes of DeepSeek, SGLang with simulated MTP is only 1.5% slower than DeepSeek’s profile. In a higher batch size setting (256 sequences, 2,000 input length), SGLang achieves 22,282 tokens per second per node, demonstrating strong scalability.
-
-##### Detail Breakdown
-
-The figure below breaks down kernel execution times for prefill, including unit test results as a theoretical upper bound:
-
-<img src="/images/blog/large_scale_ep/profile-prefill.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 80%"></img>
-
-- **Default EPLB**: Communication kernels exhibit longer execution times and higher variance compared to DeepSeek’s profile, likely due to greater expert imbalance. This leads to extended computation stream bubbles, slowing down overall performance.
-- **Simulated Perfect EPLB**: This setup aligns more closely with DeepSeek’s profile, though discrepancies remain, indicating potential areas for optimization.
-- **Comparison with Unit Tests**: Both DeepSeek and SGLang have a communication time slower than unit test results, while the latter is achievable when disabling TBO, revealing a potential optimization direction if communication is the bottleneck.
-
-SGLang’s decode kernel breakdown aligns closely with DeepSeek’s, as shown below:
-
-<img src="/images/blog/large_scale_ep/profile-decode.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 80%"></img>
-
-Key observations include:
-
-- **Combine Time Discrepancy**: SGLang’s combine operation appears 2x slower than DeepSeek’s due to shorter attention computation, causing communication kernels to busy-wait. In the simulated slow attention experiment, combine time matches DeepSeek’s, confirming this hypothesis.
-- **MoE Performance**: SGLang’s MoE kernels are 25% slower, possibly because DeepSeek’s 18 nodes (versus our 9) distribute experts more efficiently, reducing memory access overhead for GEMM operations.
-- **Dispatch Optimization Potential**: Both DeepSeek and SGLang show dispatch times of ~0.17ms per layer, but unit tests with DeepEP reveal a potential of 0.06ms occupying SMs. Currently, dispatch spends significant time busy-waiting for data. Inserting slow dummy kernels between send/receive operations reduces dispatch time to 0.09ms, and in-flight duration analysis using unit test data suggests further improvements are possible.
-
-While minor enhancements remain—primarily in kernel fusion under "Other Kernels"—SGLang’s decode performance is largely aligned with DeepSeek’s, with prefill optimization as the next focus.
-
-
+---
 
 ## Toolkits
 
@@ -448,6 +459,8 @@ SGLang also includes a toolset for analyzing and simulating expert workload dist
 
 This simulation capability allows users to evaluate how factors like rebalancing frequency, node count, or batch size impact system performance. It’s a cost-effective way to fine-tune configurations before scaling up.
 
+---
+
 ## Limitations and Future Work
 
 While our implementation of SGLang for DeepSeek-V3 inference demonstrates significant throughput improvements, several limitations and areas for future enhancement remain:
@@ -456,13 +469,15 @@ While our implementation of SGLang for DeepSeek-V3 inference demonstrates signif
 2. **Sequence Length Constraints**: Limited to shorter sequences due to the use of 96 GPUs. Expanding GPU resources would support longer sequences, essential for specific applications.
 3. **Multi-Token Prediction (MTP) Integration**: SGLang supports MTP but lacks full integration with DP attention, reducing efficiency in mixed parallelism configurations.
 4. **EPLB Distribution**: The experiments in this blog utilizes in-distribution data for Expert Parallelism Load Balancer (EPLB), which may not reflect real-world variability. Future work should experiment performances when having distribution shifts.
-6. **Flexible Tensor Parallelism (TP) Sizes**: For DeepSeek-V3, memory-optimal TP sizes are 3 or 4, but SGLang supports only pure TP or DP, leading to suboptimal memory use. Flexible TP options are needed.
+5. **Flexible Tensor Parallelism (TP) Sizes**: For DeepSeek-V3, memory-optimal TP sizes are 3 or 4, but SGLang supports only pure TP or DP, leading to suboptimal memory use. Flexible TP options are needed.
 
 ---
 
 ## Conclusion
 
 By leveraging PD disaggregation, DeepEP, and a carefully crafted parallelism design, we’ve reproduced DeepSeek’s inference framework in SGLang with exceptional performance. Our open-source efforts—achieving 54.5k input tokens per second and 22.3k output tokens per second—demonstrate SGLang’s power for large-scale LLM inference. We invite the community to explore, replicate, and extend this work to push the boundaries of efficient AI deployment.
+
+---
 
 ## Acknowledgment
 
@@ -479,7 +494,8 @@ We would like to express our heartfelt gratitude to the following teams and coll
 
 Thank you all for your invaluable support and collaboration.
 
+---
+
 ## Appendix
 
 **Related PRs**: [#1970](https://github.com/sgl-project/sglang/pull/1970) [#2925](https://github.com/sgl-project/sglang/pull/2925) [#4068](https://github.com/sgl-project/sglang/pull/4068) [#4165](https://github.com/sgl-project/sglang/pull/4165) [#4232](https://github.com/sgl-project/sglang/pull/4232) [#4390](https://github.com/sgl-project/sglang/pull/4390) [#4435](https://github.com/sgl-project/sglang/pull/4435) [#4521](https://github.com/sgl-project/sglang/pull/4521) [#4654](https://github.com/sgl-project/sglang/pull/4654) [#4767](https://github.com/sgl-project/sglang/pull/4767) [#4770](https://github.com/sgl-project/sglang/pull/4770) [#4836](https://github.com/sgl-project/sglang/pull/4836) [#4880](https://github.com/sgl-project/sglang/pull/4880) [#4957](https://github.com/sgl-project/sglang/pull/4957) [#5068](https://github.com/sgl-project/sglang/pull/5068) [#5085](https://github.com/sgl-project/sglang/pull/5085) [#5295](https://github.com/sgl-project/sglang/pull/5295) [#5415](https://github.com/sgl-project/sglang/pull/5415) [#5432](https://github.com/sgl-project/sglang/pull/5432) [#5435](https://github.com/sgl-project/sglang/pull/5435) [#5530](https://github.com/sgl-project/sglang/pull/5530) [#5558](https://github.com/sgl-project/sglang/pull/5558) [#5561](https://github.com/sgl-project/sglang/pull/5561) [#5626](https://github.com/sgl-project/sglang/pull/5626) [#5657](https://github.com/sgl-project/sglang/pull/5657) [#5805](https://github.com/sgl-project/sglang/pull/5805) [#5819](https://github.com/sgl-project/sglang/pull/5819) [#5890](https://github.com/sgl-project/sglang/pull/5890) [DeepEP#142](https://github.com/deepseek-ai/DeepEP/pull/142) 
-
