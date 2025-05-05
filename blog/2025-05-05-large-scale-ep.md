@@ -13,7 +13,6 @@ DeepSeek is a popular open-source large language model (LLM) praised for its str
 
 Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H100 GPUs. It uses prefill-decode disaggreegation and large-scale expert parallelism, achieving a speed of **54.5k input tokens per second and 22.3k output tokens per second per node** for 2000-token input sequences. To the best of our knowledge, this represents **the first open-source implementation to nearly match the throughput reported in the official DeepSeek blog** at a 96-GPU scale. Compared to standard tensor parallelism using the same resources, the new setup improves output speed by up to 2.1x. This blog dives into our parallel design, optimization methods, and results. All components of our work are fully open-source, allowing others to explore and build on our efforts. The instructions for reproducing our experiments are fully available [here](https://github.com/sgl-project/sglang/issues/6017).
 
----
 
 ## Highlight
 
@@ -25,7 +24,6 @@ Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H10
 
 ✅ All experiments and code are fully open-sourced for community access and further development.
 
----
 
 ## Outline
 
@@ -38,7 +36,6 @@ Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H10
 - [Conclusion](#conclusion)
 - [Acknowledgment](#acknowledgment)
 
----
 
 ## Parallelism Design
 
@@ -76,7 +73,6 @@ The figure in the right figure above illustrates our EP implementation using the
 
 The LM head computes output probabilities over a large vocabulary, a resource-intensive operation traditionally handled with vocabulary parallelism to aggregate token logits from TP groups. To enhance scalability and efficiency, we adopt **Data Parallelism (DP)**, mirroring our dense FFN strategy. This reduces memory overhead and simplifies communication across devices, delivering a more streamlined solution.
 
----
 
 ## Prefill and Decode Disaggregation
 
@@ -116,7 +112,6 @@ This separation ensures each phase operates under optimal conditions, maximizing
 
 More details can be found in our [design document](https://docs.google.com/document/d/1rQXJwKd5b9b1aOzLh98mnyMhBMhlxXA5ATZTHoQrwvc/edit?tab=t.0).
 
----
 
 ## Large-scale Expert Parallelism
 
@@ -235,7 +230,6 @@ SGLang implements expert rebalancing in three stages to ensure efficiency and mi
 
 This staged approach ensures that rebalancing is both efficient and non-disruptive, maintaining system performance during updates.
 
----
 
 ## Evaluation
 
@@ -414,7 +408,6 @@ Key observations include:
 
 These findings highlight EPLB's role in addressing workload imbalances and the value of tailoring expert placement to phase-specific demands.
 
----
 
 ## Toolkits
 
@@ -459,7 +452,6 @@ SGLang also includes a toolset for analyzing and simulating expert workload dist
 
 This simulation capability allows users to evaluate how factors like rebalancing frequency, node count, or batch size impact system performance. It’s a cost-effective way to fine-tune configurations before scaling up.
 
----
 
 ## Limitations and Future Work
 
@@ -472,13 +464,11 @@ While our implementation of SGLang for DeepSeek-V3 inference demonstrates signif
 5. **Flexible Tensor Parallelism (TP) Sizes**: For DeepSeek-V3, memory-optimal TP sizes are small but larger than 1. Currently, SGLang only supports pure TP or DP, leading to suboptimal memory use. Flexible TP options are needed.
 6. **Blackwell Support**: Currently, our implementation supports only the NVIDIA Hopper architecture. We are actively working to extend compatibility to the next-generation Blackwell architecture. If you are interested in supporting or sponsoring this development, welcome to contact [lmsys.org@gmail.com](mailto:lmsys.org@gmail.com).
 
----
 
 ## Conclusion
 
 By leveraging PD disaggregation, DeepEP, and a carefully crafted parallelism design, we’ve reproduced DeepSeek’s inference framework in SGLang with exceptional performance. Our open-source efforts—achieving 54.5k input tokens per second and 22.3k output tokens per second—demonstrate SGLang’s power for large-scale LLM inference. We invite the community to explore, replicate, and extend this work to push the boundaries of efficient AI deployment.
 
----
 
 ## Acknowledgment
 
@@ -495,7 +485,6 @@ We would like to express our heartfelt gratitude to the following teams and coll
 
 Thank you all for your invaluable support and collaboration.
 
----
 
 ## Appendix
 
