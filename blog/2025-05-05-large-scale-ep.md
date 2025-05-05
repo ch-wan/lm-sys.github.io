@@ -13,7 +13,7 @@ DeepSeek is a popular open-source large language model (LLM) praised for its str
 
 Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H100 GPUs.
 It uses prefill-decode disaggreegation and large-scale expert parallelism, achieving a speed of **52.3k input tokens per second and 22.3k output tokens per second per node** for 2000-token input sequences.
-To the best of our knowledge, this represents **the first open-source implementation to nearly match the throughput reported in the official DeepSeek blog** at a 96-GPU scale.
+To the best of our knowledge, this represents **the first open-source implementation to nearly match the throughput reported in the official DeepSeek blog** at large scale.
 By deploying this implementation locally, it translates to a cost of $0.20/1M output tokens, which is about one-fifth the cost of the official DeepSeek Chat API.
 Compared to standard tensor parallelism using the same resources, our optimized strategy improves the output throuhgput by up to 5x.
 This blog dives into our parallel design, optimization methods, and results. All components of our work are fully open-source, allowing others to explore and build on our efforts. The instructions for reproducing our experiments are fully available [here](https://github.com/sgl-project/sglang/issues/6017).
