@@ -7,11 +7,11 @@ previewImg: /images/blog/large_scale_ep/overall-arch.png
 
 ---
 
-DeepSeek is a popular open-source large language model (LLM) praised for its strong performance. Its large size and unique structure, which uses Multi-head Latent Attention (MLA) and a Mixture of Experts (MoE) approach, require an advanced system for efficient use at scale. In this blog, we explain how we match DeepSeek's inference system performance with SGLang. By applying improved parallel processing and optimizations, we achieved high efficiency and speed.
+DeepSeek is a popular open-source large language model (LLM) praised for its strong performance. Its large size and unique structure, which uses Multi-head Latent Attention (MLA) and a Mixture of Experts (MoE) approach, require an advanced system for efficient use at scale. In this blog, we explain how we match DeepSeek's inference system performance with SGLang.
 
 <img src="/images/blog/large_scale_ep/overall-arch.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 90%; image-orientation: none;"></img>
 
-Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H100 GPUs. It uses prefill-decode disaggreegation and large-scale expert parallelism, achieving a speed of **54.5k input tokens per second and 22.3k output tokens per second per node** for 2000-token input sequences. To the best of our knowledge, this represents **the first open-source implementation to nearly match the throughput reported in the official DeepSeek blog** at a 96-GPU scale. Compared to standard tensor parallelism using the same resources, the new setup improves output speed by up to 2.1x. This blog dives into our parallel design, optimization methods, and results. All components of our work are fully open-source, allowing others to explore and build on our efforts. The code is available at: [https://github.com/sgl-project/sglang/pull/5524](https://github.com/sgl-project/sglang/pull/5524).
+Our implementation, shown in the figure above, runs on 12 nodes, each with 8 H100 GPUs. It uses prefill-decode disaggreegation and large-scale expert parallelism, achieving a speed of **54.5k input tokens per second and 22.3k output tokens per second per node** for 2000-token input sequences. To the best of our knowledge, this represents **the first open-source implementation to nearly match the throughput reported in the official DeepSeek blog** at a 96-GPU scale. Compared to standard tensor parallelism using the same resources, the new setup improves output speed by up to 2.1x. This blog dives into our parallel design, optimization methods, and results. All components of our work are fully open-source, allowing others to explore and build on our efforts. The instructions for reproducing our experiments are fully available at: https://github.com/sgl-project/sglang/issues/6017.
 
 ---
 
@@ -470,6 +470,7 @@ While our implementation of SGLang for DeepSeek-V3 inference demonstrates signif
 3. **Multi-Token Prediction (MTP) Integration**: SGLang supports MTP but lacks full integration with DP attention, reducing efficiency in mixed parallelism configurations.
 4. **EPLB Distribution**: The experiments in this blog utilizes in-distribution data for Expert Parallelism Load Balancer (EPLB), which may not reflect real-world variability. Future work should experiment performances when having distribution shifts.
 5. **Flexible Tensor Parallelism (TP) Sizes**: For DeepSeek-V3, memory-optimal TP sizes are small but larger than 1. Currently, SGLang only supports pure TP or DP, leading to suboptimal memory use. Flexible TP options are needed.
+6. **Blackwell Support**: Currently, our implementation supports only the NVIDIA Hopper architecture. We are actively working to extend compatibility to the next-generation Blackwell architecture. If you are interested in supporting or sponsoring this development, we welcome your engagement.
 
 ---
 
