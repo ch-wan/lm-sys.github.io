@@ -1,5 +1,5 @@
 ---
-title: "Deploying DeepSeek with PD disaggregation and Large-scale Expert Parallelism on 96 H100 GPUs"
+title: "Deploying DeepSeek with PD Disaggregation and Large-scale Expert Parallelism on 96 H100 GPUs"
 author: "The SGLang Team"
 date: "May 5, 2025"
 previewImg: /images/blog/large_scale_ep/cover.png
@@ -7,7 +7,7 @@ previewImg: /images/blog/large_scale_ep/cover.png
 
 ---
 
-DeepSeek is a popular open-source large language model (LLM) praised for its strong performance. Its large size and unique structure, which uses Multi-head Latent Attention (MLA) and a Mixture of Experts (MoE) approach, require an advanced system for efficient use at scale. In this blog, we explain how we match DeepSeek's inference system performance with SGLang.
+DeepSeek is a popular open-source large language model (LLM) praised for its strong performance. However, its large size and unique structure, which uses Multi-head Latent Attention (MLA) and Mixture of Experts (MoE), require an advanced system for efficient serving at scale. In this blog, we explain how we match DeepSeek's inference system performance with SGLang.
 
 <img src="/images/blog/large_scale_ep/overall-arch.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 90%; image-orientation: none;"></img>
 
