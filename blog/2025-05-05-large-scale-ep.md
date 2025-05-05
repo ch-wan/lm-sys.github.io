@@ -148,7 +148,7 @@ DeepGEMM integrates smoothly with the dispatch modes of DeepEP:
 - For the **contiguous layout kernel**, which is used with **normal dispatch** in the prefill phase, an additional step is required. Since normal dispatch outputs a symbolic shape, a permutation is needed to transform the output into the contiguous format expected by the kernel. We referred to the LightLLM project and implemented a custom Triton kernel for efficient permutation. This kernel ensures that the output from normal dispatch is correctly rearranged, enabling smooth integration with the contiguous GEMM kernel.
 - The **masked layout kernel** pairs seamlessly with DeepEP’s **low-latency dispatch**, as both are optimized for the decode phase and support CUDA Graph.
 
-SGLang also integrates DeepGEMM for MoE computation under tensor parallelism. Additionally, DeepGEMM provides a highly efficient general GeMM kernel, which can be activated in SGLang by setting the environment variable `SGL_ENABLE_JIT_DeepGEMM` to 1, offering even greater computational efficiency for non-MoE operations.
+SGLang also integrates DeepGEMM for MoE computation under tensor parallelism. Additionally, DeepGEMM provides a highly efficient general GeMM kernel, which can be activated in SGLang by setting the environment variable `SGL_ENABLE_JIT_DEEPGEMM` to 1, offering even greater computational efficiency for non-MoE operations.
 
 
 
@@ -161,7 +161,7 @@ In multi-node environments, limited communication bandwidth can significantly in
 Although DeepSeek released the design framework of TBO, there are two slight implementation challenges.
 
 - **Code Complexity**: Directly coding TBO can lead to duplicated logic for managing multiple micro-batches. This increases the complexity of the codebase, making it harder to maintain and prone to errors, especially as the number of micro-batches or overlapping scenarios grows.
-- **Synchronization Issues in the Prefill Phase**: Achieving effective overlap between computation and communication needs consideration when the **normal dispatch** in DeepEP block the CPU. This blocking behavior can stall the pipeline, leaving the GPU idle and undermining the performance benefits of TBO.
+- **Synchronization Issues in the Prefill Phase**: Achieving effective overlap between computation and communication needs consideration when the normal dispatch in DeepEP block the CPU. This blocking behavior can stall the pipeline, leaving the GPU idle and undermining the performance benefits of TBO.
 
 ##### Abstraction for Clean Implementation
 
@@ -181,8 +181,6 @@ operations = [
 def _forward_attn(self, state):
     state.hidden_states = self.self_attn(state.hidden_states, ...)
 ```
-
-This abstraction keeps the codebase clean and adaptable, making it ideal for complex processing scenarios.
 
 ##### Prefill Overlapping Implementation
 
@@ -263,7 +261,7 @@ TODO: Update the figure + update the comments
 
 To accommodate varying workload demands, we assessed the prefill (P) and decode (D) phases independently, assuming infinite resources for the untested phase to maximize the workload on the tested nodes. This setup mirrors DeepSeek’s production environment:
 
-- **Prefill Phase**: Tested with 4 nodes (4x8xH100), achieving 50,302 tokens per second per node with a prompt length of 4000.
+- **Prefill Phase**: Tested with 4 nodes (4x8xH100), achieving 50,302 tokens per second per node with a prompt length of 4096.
 - **Decode Phase**: Tested with 9 nodes (9x8xH100, half of DeepSeek’s), achieving 22,282 tokens per second per node with an input length of 2000. Under simulated MTP conditions with deliberately slowed attention mechanisms, throughput remained robust at 17,373 tokens per second per node with an input length of 4000.
 
 To simulate MTP’s effects, we firstly double the batch size and halve the Key-Value KV cache length to maintain the same workload for computations and memory access patterns. Moreover, we insert dummy kernels after the real attention computation to ensure the attention phase takes the same time as in DeepSeek’s profile, accurately reflecting the slowdown caused by MTP’s attention mechanism.
@@ -293,8 +291,8 @@ TBO delivers two significant benefits in the prefill phase, as evidenced by thro
 
 TBO’s impact in the decode phase varies by scenario, with performance tied to batch size and attention processing time:
 
-- **Simulated MTP Scenario**: TBO provides the most substantial speedup in simulated MTP cases when processing 128 requests to generate 256 tokens per decode step. This is due to prolonged attention processing time, which aligns computation (e.g., DP Attention layers) with DeepEP communication overhead (e.g., combine and dispatch steps). The evaluation shows a 35% speedup at 128 tokens/device, with throughput 21,940 tokens per second compared to 16,161 without TBO.
-- **Real Test Cases**: Speedup in practical scenarios is contingent on batch size exceeding a threshold between 64 and 128 tokens, reaching 17,220 tokens per second at 128 tokens. Below this, TBO yields minimal or negative gains (e.g., -27% at 32 tokens/device), as small decode batch sizes hinder kernel efficiency.
+- **Simulated MTP Scenario**: TBO provides the most substantial speedup in simulated MTP cases when processing 128 requests to generate 256 tokens per decode step. This is due to prolonged attention processing time, which aligns computation (e.g., DP Attention layers) with DeepEP communication overhead (e.g., combine and dispatch steps). The evaluation shows a 35% speedup at 128 tokens/device, with throughput 17,552 tokens per second compared to 12,929 without TBO.
+- **Real Test Cases**: Speedup in practical scenarios is contingent on batch size exceeding a threshold between 64 and 128 tokens. Below this, TBO yields minimal or negative gains (e.g., -27% at 32 tokens/device), as small decode batch sizes hinder kernel efficiency. The speedup reaches 25.5% at 256 tokens with a performance of 22,310 tokens per second.
 
 ##### Detail Breakdown
 
@@ -391,6 +389,7 @@ The figure below breaks down kernel execution times for prefill, including unit 
 
 - **Default EPLB**: Communication kernels exhibit longer execution times and higher variance compared to DeepSeek’s profile, likely due to greater expert imbalance. This leads to extended computation stream bubbles, slowing down overall performance.
 - **Simulated Perfect EPLB**: This setup aligns more closely with DeepSeek’s profile, though discrepancies remain, indicating potential areas for optimization.
+- **Comparison with Unit Tests**: Both DeepSeek and SGLang have a communication time slower than unit test results, while the latter is achievable when disabling TBO, revealing a potential optimization direction if communication is the bottleneck.
 
 SGLang’s decode kernel breakdown aligns closely with DeepSeek’s, as shown below:
 
