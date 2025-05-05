@@ -7,7 +7,7 @@ previewImg: /images/blog/large_scale_ep/cover.jpg
 
 ---
 
-DeepSeek is a popular open-source large language model (LLM) praised for its strong performance. However, its large size and unique structure, which uses Multi-head Latent Attention (MLA) and Mixture of Experts (MoE), require an advanced system for efficient serving at scale. In this blog, we explain how we match DeepSeek's inference system performance with SGLang.
+DeepSeek is a popular open-source large language model (LLM) praised for its strong performance. However, its large size and unique architecture, which uses Multi-head Latent Attention (MLA) and Mixture of Experts (MoE), require an advanced system for efficient serving at scale. In this blog, we explain how we match DeepSeek's inference system performance with SGLang.
 
 <img src="/images/blog/large_scale_ep/overall-arch.png" style="display:block; margin-top: auto; margin-left: auto; margin-right: auto; margin-bottom: auto; width: 90%; image-orientation: none;"></img>
 
@@ -16,7 +16,7 @@ It uses prefill-decode disaggreegation and large-scale expert parallelism, achie
 To the best of our knowledge, this represents **the first open-source implementation to nearly match the throughput reported in the official DeepSeek blog** at large scale.
 By deploying this implementation locally, it translates to a cost of $0.20/1M output tokens, which is about one-fifth the cost of the official DeepSeek Chat API.
 Compared to standard tensor parallelism using the same resources, our optimized strategy improves the output throuhgput by up to 5x.
-This blog dives into our parallel design, optimization methods, and results. All components of our work are fully open-source, allowing others to explore and build on our efforts. The instructions for reproducing our experiments are fully available [here](https://github.com/sgl-project/sglang/issues/6017).
+This blog dives into our parallelism design, optimization methods, and results. All components of our work are fully open-source, allowing others to explore and build on our efforts. The instructions for reproducing our experiments are fully available [here](https://github.com/sgl-project/sglang/issues/6017).
 
 
 ## Highlight
